@@ -39,7 +39,7 @@ const SummaryCard = ({ icon, label, average, count, color }) => (
 );
 
 const AdminRatings = () => {
-    const [summary, setSummary] = useState({ admin: { average: 0, count: 0 }, system: { average: 0, count: 0 }, total: 0 });
+    const [summary, setSummary] = useState({ mechanic: { average: 0, count: 0 }, system: { average: 0, count: 0 }, total: 0 });
     const [ratings, setRatings] = useState([]);
     const [filter, setFilter] = useState('ALL');
     const [loading, setLoading] = useState(true);
@@ -88,16 +88,16 @@ const AdminRatings = () => {
             <div className="ar-summary-grid">
                 <SummaryCard
                     icon={<Users size={20} />}
-                    label="Admin / Service Rating"
-                    average={summary.admin.average}
-                    count={summary.admin.count}
+                    label="Mechanic Rating"
+                    average={summary.mechanic?.average || 0}
+                    count={summary.mechanic?.count || 0}
                     color="blue"
                 />
                 <SummaryCard
                     icon={<Monitor size={20} />}
-                    label="System / Platform Rating"
-                    average={summary.system.average}
-                    count={summary.system.count}
+                    label="System Rating"
+                    average={summary.system?.average || 0}
+                    count={summary.system?.count || 0}
                     color="purple"
                 />
                 <SummaryCard
@@ -106,12 +106,12 @@ const AdminRatings = () => {
                     average={
                         summary.total > 0
                             ? parseFloat(
-                                  (
-                                      (summary.admin.average * summary.admin.count +
-                                          summary.system.average * summary.system.count) /
-                                      summary.total
-                                  ).toFixed(1)
-                              )
+                                (
+                                    (summary.mechanic.average * summary.mechanic.count +
+                                        summary.system.average * summary.system.count) /
+                                    summary.total
+                                ).toFixed(1)
+                            )
                             : 0
                     }
                     count={summary.total}
@@ -121,13 +121,13 @@ const AdminRatings = () => {
 
             {/* Filter */}
             <div className="ar-filter-row">
-                {['ALL', 'ADMIN', 'SYSTEM'].map((f) => (
+                {['ALL', 'MECHANIC', 'SYSTEM'].map((f) => (
                     <button
                         key={f}
                         className={`ar-filter-btn ${filter === f ? 'ar-filter-btn--active' : ''}`}
                         onClick={() => setFilter(f)}
                     >
-                        {f === 'ALL' ? 'All Ratings' : f === 'ADMIN' ? 'Admin' : 'System'}
+                        {f === 'ALL' ? 'All Ratings' : f === 'MECHANIC' ? 'Mechanic' : 'System'}
                     </button>
                 ))}
                 <span className="ar-filter-count">{filtered.length} result{filtered.length !== 1 ? 's' : ''}</span>
@@ -161,8 +161,8 @@ const AdminRatings = () => {
                                         </div>
                                     </td>
                                     <td>
-                                        <span className={`ar-badge ar-badge--${r.ratingType.toLowerCase()}`}>
-                                            {r.ratingType === 'ADMIN' ? 'Admin' : 'System'}
+                                        <span className={`ar-badge ar-badge--${(r.ratingType || 'SYSTEM').toLowerCase()}`}>
+                                            {(r.ratingType || 'SYSTEM') === 'MECHANIC' ? 'Mechanic' : 'System'}
                                         </span>
                                     </td>
                                     <td>
