@@ -65,6 +65,7 @@ model Appointment {
   parts       JobPart[]
   updates     JobUpdate[]
   invoice     Invoice?
+  rating      Rating?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 }
@@ -146,11 +147,17 @@ model JobUpdate {
 
 model Rating {
   id          Int      @id @default(autoincrement())
-  ratingType  String   // "ADMIN" or "SYSTEM"
+  ratingType  String   // "MECHANIC" or "SYSTEM" (legacy ADMIN supported in API)
   score       Int      // 1-5
   comment     String?  @db.Text
   customerId  Int
   customer    User     @relation(fields: [customerId], references: [id])
+  appointmentId Int?   @unique
+  appointment Appointment? @relation(fields: [appointmentId], references: [id])
+  serviceName String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([serviceName])
 }

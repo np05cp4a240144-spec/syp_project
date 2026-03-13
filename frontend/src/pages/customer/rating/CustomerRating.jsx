@@ -23,8 +23,8 @@ const LABELS = { 1: 'Poor', 2: 'Fair', 3: 'Good', 4: 'Very Good', 5: 'Excellent'
 
 const RatingCard = ({ type, icon, title, description, form, setForm, onSubmit, loading, submitted }) => {
     const key = type.toLowerCase();
-    const score = form[key].score;
-    const comment = form[key].comment;
+    const score = form[key]?.score || 0;
+    const comment = form[key]?.comment || '';
 
     return (
         <div className={`cr-card ${submitted[key] ? 'cr-card--submitted' : ''}`}>
@@ -84,32 +84,32 @@ const RatingCard = ({ type, icon, title, description, form, setForm, onSubmit, l
 
 const CustomerRating = () => {
     const [form, setForm] = useState({
-        admin: { score: 0, comment: '' },
+        mechanic: { score: 0, comment: '' },
         system: { score: 0, comment: '' }
     });
-    const [loading, setLoading] = useState({ admin: false, system: false });
-    const [submitted, setSubmitted] = useState({ admin: false, system: false });
+    const [loading, setLoading] = useState({ mechanic: false, system: false });
+    const [submitted, setSubmitted] = useState({ mechanic: false, system: false });
     const [pastRatings, setPastRatings] = useState([]);
     const [pastLoading, setPastLoading] = useState(true);
     const [error, setError] = useState('');
 
     useEffect(() => {
-        const fetchMyRatings = async () => {
+        const fetchData = async () => {
             try {
-                const res = await api.get('/ratings/my');
-                setPastRatings(res.data || []);
-            } catch {
-                // non-critical
+                const myRatingsRes = await api.get('/ratings/my');
+                setPastRatings(myRatingsRes.data || []);
+            } catch (err) {
+                setError(err.response?.data?.error || 'Failed to load ratings. Please refresh.');
             } finally {
                 setPastLoading(false);
             }
         };
-        fetchMyRatings();
+        fetchData();
     }, [submitted]);
 
     const handleSubmit = async (type) => {
         const key = type.toLowerCase();
-        const { score, comment } = form[key];
+        const { score, comment } = form[key] || {};
         if (score === 0) return;
 
         setError('');
@@ -137,7 +137,7 @@ const CustomerRating = () => {
             <div className="cr-page__header">
                 <h1 className="cr-page__title">Rate Your Experience</h1>
                 <p className="cr-page__subtitle">
-                    Your feedback helps us improve our service. Rate both the admin team and the overall platform.
+                    Your feedback helps us improve. Rate both mechanic service quality and the overall system.
                 </p>
             </div>
 
@@ -145,10 +145,10 @@ const CustomerRating = () => {
 
             <div className="cr-cards-grid">
                 <RatingCard
-                    type="ADMIN"
+                    type="MECHANIC"
                     icon={<Users size={22} />}
-                    title="Admin / Service Team"
-                    description="Rate the quality of the service team, communication, and overall customer handling."
+                    title="Mechanic Service"
+                    description="Rate the mechanic’s workmanship, communication, and professionalism."
                     form={form}
                     setForm={setForm}
                     onSubmit={handleSubmit}
@@ -159,7 +159,7 @@ const CustomerRating = () => {
                     type="SYSTEM"
                     icon={<Monitor size={22} />}
                     title="Overall System / Platform"
-                    description="Rate the booking system, app usability, tracking features, and overall digital experience."
+                    description="Rate booking flow, app usability, tracking, and overall platform experience."
                     form={form}
                     setForm={setForm}
                     onSubmit={handleSubmit}
@@ -183,8 +183,8 @@ const CustomerRating = () => {
                         {pastRatings.map((r) => (
                             <div key={r.id} className="cr-history__item">
                                 <div className="cr-history__item-left">
-                                    <span className={`cr-history__badge cr-history__badge--${r.ratingType.toLowerCase()}`}>
-                                        {r.ratingType === 'ADMIN' ? 'Admin' : 'System'}
+                                    <span className={`cr-history__badge cr-history__badge--${(r.ratingType || 'SYSTEM').toLowerCase()}`}>
+                                        {(r.ratingType || 'SYSTEM') === 'MECHANIC' ? 'Mechanic' : 'System'}
                                     </span>
                                     <div className="cr-history__stars">{renderStars(r.score)}</div>
                                     <span className="cr-history__score-text">{LABELS[r.score]}</span>
