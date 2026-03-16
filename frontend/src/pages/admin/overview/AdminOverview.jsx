@@ -1,5 +1,6 @@
 import './AdminOverview.css';
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../../../api/axios';
 import { ArrowRight, BarChart3 } from 'lucide-react';
 import {
@@ -13,6 +14,7 @@ import {
 } from 'recharts';
 
 const AdminOverview = () => {
+    const navigate = useNavigate();
     const [stats, setStats] = useState({ customers: 0, mechanics: 0, activeAppointments: 0, totalRevenue: 0 });
     const [appointments, setAppointments] = useState([]);
     const [allAppointments, setAllAppointments] = useState([]);
@@ -178,7 +180,7 @@ const AdminOverview = () => {
                 <section className="admin-overview__panel admin-overview__panel--appointments">
                     <div className="admin-overview__panel-head">
                         <div className="admin-overview__panel-head-title">Recent Appointments</div>
-                        <button className="admin-overview__link-btn">View all <ArrowRight size={12} /></button>
+                        <button className="admin-overview__link-btn" onClick={() => navigate('/admin/appointments')}>View all <ArrowRight size={12} /></button>
                     </div>
                     <div className="admin-overview__table-wrap">
                         <table className="admin-overview__table">
@@ -246,7 +248,7 @@ const AdminOverview = () => {
                 <section className="admin-overview__panel admin-overview__panel--inventory">
                     <div className="admin-overview__panel-head">
                         <div className="admin-overview__panel-head-title">Inventory Status</div>
-                        <button className="admin-overview__link-btn">Manage <ArrowRight size={12} /></button>
+                        <button className="admin-overview__link-btn" onClick={() => navigate('/admin/inventory')}>Manage <ArrowRight size={12} /></button>
                     </div>
                     <div className="admin-overview__inventory-list">
                         {lowFirstInventory.length === 0 && <div className="admin-overview__empty-hint">No inventory data available.</div>}
