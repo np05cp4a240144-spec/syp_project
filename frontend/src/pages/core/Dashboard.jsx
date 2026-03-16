@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard,
     Calendar,
@@ -65,6 +65,7 @@ const Dashboard = () => {
     const { user, logout } = useAuth();
     const [activeTab, setActiveTab] = useState('Weekly');
     const [currentDate, setCurrentDate] = useState('');
+    const navigate = useNavigate();
 
     useEffect(() => {
         const now = new Date();
@@ -184,7 +185,7 @@ const Dashboard = () => {
                                     <div className="dash-panel__title">Today's Queue</div>
                                     <div className="dash-panel__sub">14 jobs scheduled</div>
                                 </div>
-                                <button className="dash-link-btn">View all</button>
+                                <button className="dash-link-btn" onClick={() => navigate('/admin/appointments')}>View all</button>
                             </div>
                             <div className="dash-queue-list">
                                 <QueueItem num="01" vehicle="2019 BMW 3 Series" type="Engine Diagnostics" status="live" />
@@ -230,7 +231,7 @@ const Dashboard = () => {
 
                     <div className="dash-row-4">
                         <div className="dash-panel">
-                            <div className="dash-panel__head"><div className="dash-panel__title">Mechanics On Duty</div><button className="dash-link-btn">Manage</button></div>
+                            <div className="dash-panel__head"><div className="dash-panel__title">Mechanics On Duty</div><button className="dash-link-btn" onClick={() => navigate('/admin/mechanics')}>Manage</button></div>
                             <div>
                                 <MechRow name="Ana Torres" spec="Engine Specialist" status="busy" jobs="2" color="#7C3AED" ini="AT" />
                                 <MechRow name="Dan Kim" spec="General Mechanic" status="free" color="#059669" ini="DK" />
