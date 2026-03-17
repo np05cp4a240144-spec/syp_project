@@ -113,6 +113,10 @@ const getMechanicProfile = async (req, res) => {
                 email: true,
                 phone: true,
                 speciality: true,
+                shiftStart: true,
+                shiftEnd: true,
+                workDays: true,
+                notificationPrefs: true,
                 createdAt: true
             }
         });
@@ -124,10 +128,19 @@ const getMechanicProfile = async (req, res) => {
 
 const updateMechanicProfile = async (req, res) => {
     try {
-        const { name, email, phone, speciality } = req.body;
+        const { name, email, phone, speciality, shiftStart, shiftEnd, workDays, notificationPrefs } = req.body;
         const mechanic = await prisma.user.update({
             where: { id: req.user.id },
-            data: { name, email, phone, speciality }
+            data: {
+                name,
+                email,
+                phone,
+                speciality,
+                shiftStart,
+                shiftEnd,
+                workDays,
+                notificationPrefs
+            }
         });
         res.json({ message: "Profile updated successfully", mechanic });
     } catch (error) {

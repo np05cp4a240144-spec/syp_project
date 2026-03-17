@@ -7,6 +7,7 @@ const CustomerPayment = () => {
     const [bookings, setBookings] = useState([]);
     const [loading, setLoading] = useState(true);
     const [payingId, setPayingId] = useState(null);
+    const [activeInvoice, setActiveInvoice] = useState(null); // ✅ FIX: was undefined
     const [status, setStatus] = useState('Idle');
 
     const fetchBookings = async () => {
@@ -28,8 +29,6 @@ const CustomerPayment = () => {
     const pendingInvoices = bookings.filter(b => b.status === 'Completed' && !b.isPaid);
     const pastPayments = bookings.filter(b => b.isPaid);
 
-    const activeInvoice = pendingInvoices[0];
-
     const calculateTotal = (booking) => {
         if (booking.invoice) {
             const partsTotal = booking.invoice.partsTotal || 0;
@@ -38,35 +37,20 @@ const CustomerPayment = () => {
             return booking.invoice.totalAmount ?? (partsTotal + laborCost + tax);
         }
         if (booking.amount > 0) return booking.amount;
-
-        // Fallback: calculate from parts
         const partsTotal = booking.parts?.reduce((sum, jp) =>
             sum + ((jp.part?.price || 0) * (jp.quantity || 1)), 0) || 0;
         return partsTotal;
     };
 
-    const totalToPay = activeInvoice ? calculateTotal(activeInvoice) : 0;
-    const activeInvoiceParts = activeInvoice?.parts || [];
-    const partsBreakdown = activeInvoiceParts.map((jp) => {
-        const qty = jp.quantity || 1;
-        const unitPrice = jp.priceAtTime || jp.part?.price || 0;
-        return {
-            id: jp.id,
-            name: jp.part?.name || 'Part',
-            qty,
-            lineTotal: qty * unitPrice
-        };
-    });
-
-    const handlePay = async (id) => {
+    const handlePay = async (inv) => {
         try {
-            setPayingId(id);
+            setPayingId(inv.id);
+            setActiveInvoice(inv); // ✅ FIX: track which invoice is being paid
             setStatus('Initiating Khalti...');
 
-            const response = await api.post('/payment/initiate', { appointmentId: id });
+            const response = await api.post('/payment/initiate', { appointmentId: inv.id });
 
             if (response.data.payment_url) {
-                // Redirect to Khalti Checkout
                 window.location.href = response.data.payment_url;
             } else {
                 throw new Error('Failed to get payment URL from Khalti');
@@ -76,6 +60,7 @@ const CustomerPayment = () => {
             alert(error.response?.data?.error || 'Payment initiation failed. Please try again.');
             setStatus('Idle');
             setPayingId(null);
+            setActiveInvoice(null);
         }
     };
 
@@ -90,92 +75,119 @@ const CustomerPayment = () => {
     return (
         <div className="customer-payment-page">
             <div className="customer-payment-shell">
-                <div className="customer-payment-section-label">Pending invoice</div>
+                <div className="customer-payment-section-label">Pending invoices</div>
 
-                {/* Invoice Area */}
-                {activeInvoice ? (
-                    <div className="customer-payment-invoice-card">
-                        <div className="customer-payment-card-head">
-                            <div className="customer-payment-head-glow"></div>
-                            <div className="customer-payment-head-row">
-                                <div>
-                                    <div className="customer-payment-brand-row">
-                                        <div className="customer-payment-brand-logo">A</div>
-                                        <span className="customer-payment-brand-name">Auto Assist</span>
-                                    </div>
-                                    <div className="customer-payment-invoice-id">{activeInvoice.invoice?.invoiceNumber || `INV-${activeInvoice.id}`} · {new Date(activeInvoice.createdAt).toLocaleDateString()}</div>
-                                </div>
-                                <span className={`customer-payment-status-pill ${status === 'Paid' ? 'is-paid' : 'is-due'}`}>
-                                    {status === 'Paid' ? 'Paid' : 'Due Now'}
-                                </span>
-                            </div>
-                            <div className="customer-payment-total">Rs. {totalToPay.toLocaleString()}</div>
-                        </div>
-
-                        <div className="customer-payment-card-body">
-                            <div className="customer-payment-meta-grid">
-                                <InvMeta label="Vehicle" val={`${activeInvoice.vehicle?.make} ${activeInvoice.vehicle?.model}`} />
-                                <InvMeta label="Mechanic" val={activeInvoice.mechanic?.name || 'Service Team'} />
-                                <InvMeta label="Service" val={activeInvoice.service} />
-                                <InvMeta label="Date" val={new Date(activeInvoice.createdAt).toLocaleDateString()} />
-                            </div>
-
-                            <div className="customer-payment-lines">
-                                <InvLine
-                                    label="Parts Total"
-                                    sub="All replaced components"
-                                    price={`Rs. ${(activeInvoice.invoice?.partsTotal || activeInvoice.parts?.reduce((s, jp) => s + (jp.part?.price * jp.quantity), 0) || 0).toLocaleString()}`}
-                                />
-                                {partsBreakdown.length > 0 && (
-                                    <div className="customer-payment-parts-breakdown">
-                                        {partsBreakdown.map((part) => (
-                                            <div key={part.id} className="customer-payment-part-row">
-                                                <span className="customer-payment-part-name">{part.name} x {part.qty}</span>
-                                                <span className="customer-payment-part-value">Rs. {part.lineTotal.toLocaleString()}</span>
+                {pendingInvoices.length > 0 ? (
+                    pendingInvoices.map((inv) => {
+                        const totalToPay = calculateTotal(inv);
+                        const partsBreakdown = (inv.parts || []).map((jp) => {
+                            const qty = jp.quantity || 1;
+                            const unitPrice = jp.priceAtTime || jp.part?.price || 0;
+                            return {
+                                id: jp.id,
+                                name: jp.part?.name || 'Part',
+                                qty,
+                                lineTotal: qty * unitPrice
+                            };
+                        });
+                        return (
+                            <div key={inv.id} className="customer-payment-invoice-card">
+                                <div className="customer-payment-card-head">
+                                    <div className="customer-payment-head-glow"></div>
+                                    <div className="customer-payment-head-row">
+                                        <div>
+                                            <div className="customer-payment-brand-row">
+                                                <div className="customer-payment-brand-logo">A</div>
+                                                <span className="customer-payment-brand-name">Auto Assist</span>
                                             </div>
-                                        ))}
+                                            <div className="customer-payment-invoice-id">{inv.invoice?.invoiceNumber || `INV-${inv.id}`} · {new Date(inv.createdAt).toLocaleDateString()}</div>
+                                        </div>
+                                        <span className={`customer-payment-status-pill ${inv.isPaid ? 'is-paid' : 'is-due'}`}>
+                                            {inv.isPaid ? 'Paid' : 'Due Now'}
+                                        </span>
                                     </div>
-                                )}
-                                <InvLine
-                                    label="Labor Cost"
-                                    sub="Professional technical service"
-                                    price={activeInvoice.invoice ? `Rs. ${activeInvoice.invoice.laborCost.toLocaleString()}` : "TBD"}
-                                />
-                                {activeInvoice.invoice?.tax > 0 && <InvLine label="Tax" sub="Applicable taxes" price={`Rs. ${activeInvoice.invoice.tax.toLocaleString()}`} />}
-                            </div>
-
-                            <div className="customer-payment-summary">
-                                <div className="customer-payment-summary-rows">
-                                    <TotalRow label="Subtotal" val={`Rs. ${totalToPay.toLocaleString()}`} />
-                                    <TotalRow label="Service Fee" val="Included" isGreen />
-                                    <div className="customer-payment-grand-total">
-                                        <span className="customer-payment-grand-total-label">Total Due</span>
-                                        <span className="customer-payment-grand-total-value">Rs. {totalToPay.toLocaleString()}</span>
-                                    </div>
+                                    <div className="customer-payment-total">Rs. {totalToPay.toLocaleString()}</div>
                                 </div>
-                            </div>
-                            {activeInvoice && status === 'Idle' && (
-                                <div className="customer-payment-pay-panel">
-                                    <div className="customer-payment-section-label">Pay now</div>
-                                    <div className="customer-payment-method-card">
-                                        <span className="customer-payment-method-icon"><img src={khalti} alt="" /></span>
-                                        <div className="customer-payment-method-copy">
-                                            <div className="customer-payment-method-name">Khalti</div>
-                                            <div className="customer-payment-method-sub">Secure checkout</div>
+
+                                <div className="customer-payment-card-body">
+                                    <div className="customer-payment-meta-grid">
+                                        <InvMeta label="Vehicle" val={`${inv.vehicle?.make} ${inv.vehicle?.model}`} />
+                                        <InvMeta label="Mechanic" val={inv.mechanic?.name || 'Service Team'} />
+                                        <InvMeta label="Service" val={inv.service} />
+                                        <InvMeta label="Date" val={new Date(inv.createdAt).toLocaleDateString()} />
+                                    </div>
+
+                                    <div className="customer-payment-lines">
+                                        <InvLine
+                                            label="Parts Total"
+                                            sub="All replaced components"
+                                            price={`Rs. ${(inv.invoice?.partsTotal || inv.parts?.reduce((s, jp) => s + (jp.part?.price * jp.quantity), 0) || 0).toLocaleString()}`}
+                                        />
+                                        {partsBreakdown.length > 0 && (
+                                            <div className="customer-payment-parts-breakdown">
+                                                {partsBreakdown.map((part) => (
+                                                    <div key={part.id} className="customer-payment-part-row">
+                                                        <span className="customer-payment-part-name">{part.name} x {part.qty}</span>
+                                                        <span className="customer-payment-part-value">Rs. {part.lineTotal.toLocaleString()}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                        <InvLine
+                                            label="Labor Cost"
+                                            sub="Professional technical service"
+                                            price={inv.invoice ? `Rs. ${inv.invoice.laborCost.toLocaleString()}` : "TBD"}
+                                        />
+                                        {inv.invoice?.discountAmount > 0 && (
+                                            <InvLine label="Discount" sub="Loyalty/Promo discount" price={`- Rs. ${inv.invoice.discountAmount.toLocaleString()}`} />
+                                        )}
+                                        {inv.invoice?.taxAmount > 0 && (
+                                            <InvLine label="Tax" sub="Applicable taxes" price={`Rs. ${inv.invoice.taxAmount.toLocaleString()}`} />
+                                        )}
+                                    </div>
+
+                                    <div className="customer-payment-summary">
+                                        <div className="customer-payment-summary-rows">
+                                            <TotalRow label="Subtotal" val={`Rs. ${(
+                                                (inv.invoice?.partsTotal || 0) +
+                                                (inv.invoice?.laborCost || 0)
+                                            ).toLocaleString()}`} />
+                                            {inv.invoice?.discountAmount > 0 && (
+                                                <TotalRow label="Discount" val={`- Rs. ${inv.invoice.discountAmount.toLocaleString()}`} isGreen />
+                                            )}
+                                            {inv.invoice?.taxAmount > 0 && (
+                                                <TotalRow label="Tax" val={`Rs. ${inv.invoice.taxAmount.toLocaleString()}`} />
+                                            )}
+                                            <div className="customer-payment-grand-total">
+                                                <span className="customer-payment-grand-total-label">Total Due</span>
+                                                <span className="customer-payment-grand-total-value">Rs. {totalToPay.toLocaleString()}</span>
+                                            </div>
                                         </div>
                                     </div>
 
-                                    <button
-                                        className="customer-payment-pay-button"
-                                        onClick={() => handlePay(activeInvoice.id)}
-                                    >
-                                        Pay Rs. {totalToPay.toLocaleString()} Securely
-                                    </button>
+                                    {!inv.isPaid && status === 'Idle' && (
+                                        <div className="customer-payment-pay-panel">
+                                            <div className="customer-payment-section-label">Pay now</div>
+                                            <div className="customer-payment-method-card">
+                                                <span className="customer-payment-method-icon"><img src={khalti} alt="" /></span>
+                                                <div className="customer-payment-method-copy">
+                                                    <div className="customer-payment-method-name">Khalti</div>
+                                                    <div className="customer-payment-method-sub">Secure checkout</div>
+                                                </div>
+                                            </div>
+                                            <button
+                                                className="customer-payment-pay-button"
+                                                onClick={() => handlePay(inv)} // ✅ FIX: pass full inv object
+                                                disabled={payingId === inv.id && status !== 'Idle'}
+                                            >
+                                                {payingId === inv.id && status !== 'Idle' ? 'Processing...' : `Pay Rs. ${totalToPay.toLocaleString()} Securely`}
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
-                            )}
-                        </div>
-
-                    </div>
+                            </div>
+                        );
+                    })
                 ) : (
                     <div className="customer-payment-empty-state">
                         <div className="customer-payment-empty-icon">✨</div>
@@ -183,8 +195,6 @@ const CustomerPayment = () => {
                         <p className="customer-payment-empty-note">You don't have any pending invoices at the moment.</p>
                     </div>
                 )}
-
-
 
                 {status === 'Processing...' && (
                     <button className="customer-payment-processing-button" disabled>⏳ Processing payment...</button>
@@ -253,8 +263,3 @@ const TotalRow = ({ label, val, isGreen = false }) => (
 );
 
 export default CustomerPayment;
-
-
-
-
-

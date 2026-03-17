@@ -2,12 +2,7 @@ import './CustomerHistory.css';
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../../api/axios';
-import {
-    Droplets,
-    Disc,
-    Wrench,
-    ScrollText
-} from 'lucide-react';
+import { Droplets, Disc, Wrench, ScrollText } from 'lucide-react';
 import InvoiceModal from '../../../components/InvoiceModal';
 
 const CustomerHistory = () => {
@@ -36,19 +31,15 @@ const CustomerHistory = () => {
 
     useEffect(() => {
         if (!bookingId || bookings.length === 0) return;
-
-        const selectedBooking = bookings.find((b) => String(b.id) === String(bookingId));
-        if (selectedBooking) {
-            openDetailsModal(selectedBooking);
-        }
+        const found = bookings.find((b) => String(b.id) === String(bookingId));
+        if (found) openDetailsModal(found);
     }, [bookingId, bookings]);
 
     const calculateTotal = (booking) => {
         if (booking.invoice?.totalAmount) return booking.invoice.totalAmount;
         if (booking.amount > 0) return booking.amount;
-        const pts = booking.parts?.reduce((sum, jp) =>
+        return booking.parts?.reduce((sum, jp) =>
             sum + ((jp.part?.price || 0) * (jp.quantity || 1)), 0) || 0;
-        return pts;
     };
 
     const getInitials = (name) => {
@@ -59,16 +50,31 @@ const CustomerHistory = () => {
     };
 
     const openInvoiceModal = (booking) => {
-        const fallbackInvoice = {
-            invoiceNumber: booking?.invoice?.invoiceNumber || `APP-${booking?.id || 'N/A'}`,
-            partsTotal: booking?.invoice?.partsTotal || 0,
-            laborCost: booking?.invoice?.laborCost || Math.max((booking?.amount || 0) - ((booking?.invoice?.partsTotal || 0)), 0),
-            tax: booking?.invoice?.tax || 0,
-            totalAmount: booking?.invoice?.totalAmount || calculateTotal(booking),
-            parts: booking?.parts || booking?.invoice?.appointment?.parts || []
-        };
+        const vehicleName = [booking?.vehicle?.make, booking?.vehicle?.model]
+            .filter(Boolean).join(' ') || '-';
+        const customerName = booking?.user?.name || '-';
 
-        setSelectedInvoice(fallbackInvoice);
+        if (booking.invoice) {
+            setSelectedInvoice({
+                ...booking.invoice,
+                parts: booking.parts || [],
+                vehicleName,
+                customerName,
+            });
+        } else {
+            setSelectedInvoice({
+                invoiceNumber: `APP-${booking?.id || 'N/A'}`,
+                partsTotal: 0,
+                laborCost: Math.max((booking?.amount || 0), 0),
+                tax: 0,
+                totalAmount: calculateTotal(booking),
+                parts: booking?.parts || [],
+                vehicleName,
+                customerName,
+                appointmentDate: booking?.createdAt ?? null,
+                discountAmount: 0,
+            });
+        }
         setIsInvoiceModalOpen(true);
     };
 
@@ -106,7 +112,13 @@ const CustomerHistory = () => {
                     bookings.map(app => (
                         <HistoryEntry
                             key={app.id}
-                            icon={app.service.toLowerCase().includes('oil') ? <Droplets size={22} color="#3B82F6" /> : app.service.toLowerCase().includes('brake') ? <Disc size={22} color="#F43F5E" /> : <Wrench size={22} color="#F59E0B" />}
+                            icon={
+                                app.service.toLowerCase().includes('oil')
+                                    ? <Droplets size={22} color="#3B82F6" />
+                                    : app.service.toLowerCase().includes('brake')
+                                        ? <Disc size={22} color="#F43F5E" />
+                                        : <Wrench size={22} color="#F59E0B" />
+                            }
                             title={`${app.vehicle?.make} ${app.vehicle?.model} — ${app.service}`}
                             date={`${new Date(app.createdAt).toLocaleDateString([], { month: 'short', day: '2-digit', year: 'numeric' })} · ${app.time}`}
                             status={app.status === 'Completed' ? null : app.status}
@@ -117,18 +129,16 @@ const CustomerHistory = () => {
                             mech={{
                                 name: app.status === 'Cancelled' ? 'Cancelled' : (app.mechanic?.name || 'Assigned'),
                                 av: app.mechanic?.name ? getInitials(app.mechanic?.name) : '?',
-                                color: '#D97706'
+                                color: '#D97706',
                             }}
-                            action={app.status === 'In Progress' ? 'Track Live →' : app.status === 'Cancelled' ? 'Rebook →' : 'View Details'}
+                            action={
+                                app.status === 'In Progress' ? 'Track Live →'
+                                    : app.status === 'Cancelled' ? 'Rebook →'
+                                        : 'View Details'
+                            }
                             onAction={() => {
-                                if (app.status === 'In Progress') {
-                                    navigate('/customer/tracking');
-                                    return;
-                                }
-                                if (app.status === 'Cancelled') {
-                                    navigate('/customer/book');
-                                    return;
-                                }
+                                if (app.status === 'In Progress') { navigate('/customer/tracking'); return; }
+                                if (app.status === 'Cancelled') { navigate('/customer/book'); return; }
                                 navigate(`/customer/history/${app.id}`);
                             }}
                             onViewInvoice={() => openInvoiceModal(app)}
@@ -144,17 +154,11 @@ const CustomerHistory = () => {
                         <div className="customer-history-details-modal" onClick={(e) => e.stopPropagation()}>
                             <div className="customer-history-details-head">
                                 <h3>Service Details</h3>
-                                <button
-                                    className="customer-history-details-close"
-                                    onClick={() => {
-                                        setIsDetailsModalOpen(false);
-                                        if (bookingId) navigate('/customer/history');
-                                    }}
-                                >
-                                    x
-                                </button>
+                                <button className="customer-history-details-close" onClick={() => {
+                                    setIsDetailsModalOpen(false);
+                                    if (bookingId) navigate('/customer/history');
+                                }}>x</button>
                             </div>
-
                             <div className="customer-history-details-grid">
                                 <div><span>Vehicle</span><strong>{selectedBooking.vehicle?.make} {selectedBooking.vehicle?.model}</strong></div>
                                 <div><span>Service</span><strong>{selectedBooking.service}</strong></div>
@@ -170,9 +174,7 @@ const CustomerHistory = () => {
 
                 <InvoiceModal
                     isOpen={isInvoiceModalOpen}
-                    onClose={() => {
-                        setIsInvoiceModalOpen(false);
-                    }}
+                    onClose={() => setIsInvoiceModalOpen(false)}
                     invoice={selectedInvoice}
                 />
             </div>
@@ -190,16 +192,13 @@ const HistoryEntry = ({ icon, title, date, status, amount, tags, mech, action, o
                     <div className="customer-history-entry-date">{date}</div>
                 </div>
             </div>
-            {status ? (
-                <span className="customer-history-entry-status">{status}</span>
-            ) : (
-                <div className="customer-history-entry-amount">{amount}</div>
-            )}
+            {status
+                ? <span className="customer-history-entry-status">{status}</span>
+                : <div className="customer-history-entry-amount">{amount}</div>
+            }
         </div>
         <div className="customer-history-entry-tags">
-            {tags.map(t => (
-                <div key={t} className="customer-history-entry-tag">{t}</div>
-            ))}
+            {tags.map(t => <div key={t} className="customer-history-entry-tag">{t}</div>)}
         </div>
         <div className="customer-history-entry-footer">
             <div className="customer-history-entry-mechanic">
@@ -207,17 +206,11 @@ const HistoryEntry = ({ icon, title, date, status, amount, tags, mech, action, o
             </div>
             <div className="customer-history-entry-actions">
                 {invoice && (
-                    <button
-                        onClick={() => onViewInvoice(invoice)}
-                        className="customer-history-invoice-button"
-                    >
+                    <button onClick={onViewInvoice} className="customer-history-invoice-button">
                         INVOICE
                     </button>
                 )}
-                <button
-                    className="customer-history-action-button"
-                    onClick={onAction}
-                >
+                <button className="customer-history-action-button" onClick={onAction}>
                     {action.toUpperCase()}
                 </button>
             </div>
@@ -226,8 +219,3 @@ const HistoryEntry = ({ icon, title, date, status, amount, tags, mech, action, o
 );
 
 export default CustomerHistory;
-
-
-
-
-

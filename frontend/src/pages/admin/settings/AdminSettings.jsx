@@ -191,13 +191,33 @@ const HoursSettings = ({ onSaved }) => {
     );
 };
 
+
 const BillingSettings = ({ onSaved }) => {
     const [form, setForm] = useState(() => getStoredJSON(STORAGE_KEYS.billing, DEFAULT_BILLING));
+    const [saving, setSaving] = useState(false);
 
     const handleChange = (name, value) => setForm((prev) => ({ ...prev, [name]: value }));
-    const handleSave = () => {
-        saveStoredJSON(STORAGE_KEYS.billing, form);
-        onSaved('Billing settings saved');
+
+
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            const payload = {
+                taxRate: parseFloat(form.taxRate),
+                invoicePrefix: form.invoicePrefix,
+                paymentTerms: form.paymentTerms,
+                autoSendInvoices: !!form.autoSendInvoices,
+                acceptOnlinePayments: !!form.acceptOnlinePayments,
+                loyaltyDiscounts: !!form.loyaltyDiscounts
+            };
+            await api.put('/settings', payload);
+            saveStoredJSON(STORAGE_KEYS.billing, form);
+            onSaved('Billing settings saved');
+        } catch (err) {
+            onSaved('Failed to save billing settings');
+        } finally {
+            setSaving(false);
+        }
     };
 
     return (
@@ -223,7 +243,9 @@ const BillingSettings = ({ onSaved }) => {
                     <ToggleRow title="Loyalty discounts" detail="10% off for customers with 5+ visits" checked={form.loyaltyDiscounts} onChange={(value) => handleChange('loyaltyDiscounts', value)} />
                 </div>
             </div>
-            <button type="button" className="admin-settings__primary-btn" onClick={handleSave}>Save Billing</button>
+            <button type="button" className="admin-settings__primary-btn" onClick={handleSave} disabled={saving}>
+                {saving ? 'Saving...' : 'Save Billing'}
+            </button>
         </div>
     );
 };
@@ -290,32 +312,6 @@ const UserRolesSettings = ({ onSaved }) => {
         setRoleDraft('USER');
     };
 
-    const saveRole = async () => {
-        if (!editingUserId) return;
-        try {
-            setSavingRole(true);
-            const updated = await api.put(`/auth/users/${editingUserId}/role`, { role: roleDraft });
-            setUsers((prev) => prev.map((u) => (u.id === editingUserId ? updated.data : u)));
-            cancelEdit();
-            onSaved('User role updated');
-        } catch (error) {
-            setUsersError(error?.response?.data?.error || 'Failed to update role.');
-        } finally {
-            setSavingRole(false);
-        }
-    };
-
-    const roleLabel = (role) => {
-        if (role === 'ADMIN') return 'Super Admin';
-        if (role === 'MECHANIC') return 'Mechanic';
-        return 'Customer';
-    };
-
-    const roleColor = (role) => {
-        if (role === 'ADMIN') return 'orange';
-        return role === 'MECHANIC' ? 'blue' : 'blue';
-    };
-
     return (
         <div className="admin-settings__panel">
             <div>
@@ -337,55 +333,61 @@ const UserRolesSettings = ({ onSaved }) => {
                     </thead>
                     <tbody>
                         {loadingUsers ? (
-                            <tr>
-                                <td colSpan="4" className="admin-settings__table-empty">Loading users...</td>
-                            </tr>
+                            <>
+                                <tr>
+                                    <td colSpan="4" className="admin-settings__table-empty">Loading users...</td>
+                                </tr>
+                            </>
                         ) : users.length === 0 ? (
-                            <tr>
-                                <td colSpan="4" className="admin-settings__table-empty">No users found.</td>
-                            </tr>
+                            <>
+                                <tr>
+                                    <td colSpan="4" className="admin-settings__table-empty">No users found.</td>
+                                </tr>
+                            </>
                         ) : (
-                            users.map((user) => {
-                                const isEditing = editingUserId === user.id;
-                                return (
-                                    <tr className="admin-settings__user-row" key={user.id}>
-                                        <td>
-                                            <div className="admin-settings__user-name">{user.name || user.email || `User #${user.id}`}</div>
-                                        </td>
-                                        <td>
-                                            {isEditing ? (
-                                                <select className="admin-settings__role-select" value={roleDraft} onChange={(e) => setRoleDraft(e.target.value)}>
-                                                    <option value="ADMIN">Super Admin</option>
-                                                    <option value="MECHANIC">Mechanic</option>
-                                                    <option value="USER">Customer</option>
-                                                </select>
-                                            ) : (
-                                                <span className={`admin-settings__role-badge ${roleColor(user.role) === 'orange' ? 'admin-settings__role-badge--orange' : 'admin-settings__role-badge--blue'}`}>
-                                                    {roleLabel(user.role)}
+                            <>
+                                {users.map((user) => {
+                                    const isEditing = editingUserId === user.id;
+                                    return (
+                                        <tr className="admin-settings__user-row" key={user.id}>
+                                            <td>
+                                                <div className="admin-settings__user-name">{user.name || user.email || `User #${user.id}`}</div>
+                                            </td>
+                                            <td>
+                                                {isEditing ? (
+                                                    <select className="admin-settings__role-select" value={roleDraft} onChange={(e) => setRoleDraft(e.target.value)}>
+                                                        <option value="ADMIN">Super Admin</option>
+                                                        <option value="MECHANIC">Mechanic</option>
+                                                        <option value="USER">Customer</option>
+                                                    </select>
+                                                ) : (
+                                                    <span className={`admin-settings__role-badge ${roleColor(user.role) === 'orange' ? 'admin-settings__role-badge--orange' : 'admin-settings__role-badge--blue'}`}>
+                                                        {roleLabel(user.role)}
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td>
+                                                <span className="admin-settings__status">
+                                                    <span className="admin-settings__status-dot"></span>
+                                                    Active
                                                 </span>
-                                            )}
-                                        </td>
-                                        <td>
-                                            <span className="admin-settings__status">
-                                                <span className="admin-settings__status-dot"></span>
-                                                Active
-                                            </span>
-                                        </td>
-                                        <td className="admin-settings__actions-cell">
-                                            {isEditing ? (
-                                                <div className="admin-settings__row-actions">
-                                                    <button type="button" className="admin-settings__edit-btn" onClick={saveRole} disabled={savingRole}>
-                                                        {savingRole ? 'Saving...' : 'Save'}
-                                                    </button>
-                                                    <button type="button" className="admin-settings__edit-btn" onClick={cancelEdit} disabled={savingRole}>Cancel</button>
-                                                </div>
-                                            ) : (
-                                                <button type="button" className="admin-settings__edit-btn" onClick={() => startEdit(user)}>Edit</button>
-                                            )}
-                                        </td>
-                                    </tr>
-                                );
-                            })
+                                            </td>
+                                            <td className="admin-settings__actions-cell">
+                                                {isEditing ? (
+                                                    <div className="admin-settings__row-actions">
+                                                        <button type="button" className="admin-settings__edit-btn" onClick={saveRole} disabled={savingRole}>
+                                                            {savingRole ? 'Saving...' : 'Save'}
+                                                        </button>
+                                                        <button type="button" className="admin-settings__edit-btn" onClick={cancelEdit} disabled={savingRole}>Cancel</button>
+                                                    </div>
+                                                ) : (
+                                                    <button type="button" className="admin-settings__edit-btn" onClick={() => startEdit(user)}>Edit</button>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </>
                         )}
                     </tbody>
                 </table>

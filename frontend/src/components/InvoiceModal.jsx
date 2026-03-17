@@ -3,245 +3,229 @@ import React from 'react';
 const InvoiceModal = ({ isOpen, onClose, invoice }) => {
     if (!isOpen || !invoice) return null;
 
-    const invoiceParts = invoice.parts || invoice.appointment?.parts || [];
-    const normalizedParts = invoiceParts
-        .map((item) => {
-            const quantity = Number(item?.quantity || 0);
-            const unitPrice = Number(item?.priceAtTime ?? item?.part?.price ?? 0);
-            const name = item?.part?.name || item?.name || 'Part';
-
-            return {
-                id: item?.id || `${name}-${quantity}-${unitPrice}`,
-                name,
-                quantity,
-                lineTotal: quantity * unitPrice
-            };
-        })
-        .filter((item) => item.quantity > 0);
-
-    const partsTotal = invoice.partsTotal || 0;
     const laborCost = invoice.laborCost || 0;
-    const tax = invoice.tax || 0;
-    const displayTotal = invoice.totalAmount ?? (partsTotal + laborCost + tax);
+    const discount = invoice.discountAmount ?? 0;
+    const vat = invoice.taxAmount ?? invoice.tax ?? 0;
+    const partsTotal = invoice.partsTotal || 0;
+    const total = invoice.totalAmount ?? (partsTotal + laborCost - discount + vat);
+    const parts = Array.isArray(invoice.parts) ? invoice.parts : [];
+    const vehicleName = invoice.vehicleName || '';
 
     const handlePrint = () => {
         const printWindow = window.open('', '_blank', 'width=900,height=700');
         if (!printWindow) return;
 
-        const partsMarkup = normalizedParts.length > 0
-            ? normalizedParts
-                .map(
-                    (item) => `
-                        <tr>
-                            <td style="padding: 10px 0; border-bottom: 1px solid #e5e7eb; color: #111827;">${item.name}</td>
-                            <td style="padding: 10px 0; border-bottom: 1px solid #e5e7eb; text-align: center; color: #111827;">${item.quantity}</td>
-                            <td style="padding: 10px 0; border-bottom: 1px solid #e5e7eb; text-align: right; color: #111827;">Rs. ${item.lineTotal.toLocaleString()}</td>
-                        </tr>
-                    `
-                )
-                .join('')
-            : `
-                <tr>
-                    <td colspan="3" style="padding: 14px 0; color: #6b7280; text-align: center;">No parts were recorded for this invoice.</td>
-                </tr>
-            `;
+        const partsMarkup = parts.length > 0
+            ? parts.map((item) => {
+                const name = item.part?.name || item.name || item.partName || '-';
+                const qty = item.quantity ?? 1;
+                const price = item.priceAtTime ?? item.part?.price ?? 0;
+                const lineTotal = price * qty;
+                return `<tr>
+                    <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;color:#111827;">${name}</td>
+                    <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;text-align:center;color:#111827;">${qty}</td>
+                    <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;text-align:right;color:#111827;">Rs. ${lineTotal.toLocaleString()}</td>
+                </tr>`;
+            }).join('')
+            : `<tr><td colspan="3" style="padding:14px 0;color:#6b7280;text-align:center;">No parts were recorded for this invoice.</td></tr>`;
 
-        printWindow.document.write(`
-            <!DOCTYPE html>
-            <html>
-                <head>
-                    <title>Invoice ${invoice.invoiceNumber}</title>
-                    <meta charset="UTF-8" />
-                    <style>
-                        body {
-                            font-family: Arial, sans-serif;
-                            margin: 0;
-                            padding: 32px;
-                            color: #111827;
-                            background: #ffffff;
-                        }
-                        .sheet {
-                            max-width: 760px;
-                            margin: 0 auto;
-                        }
-                        .header {
-                            display: flex;
-                            justify-content: space-between;
-                            align-items: flex-start;
-                            margin-bottom: 28px;
-                        }
-                        .brand {
-                            font-size: 24px;
-                            font-weight: 700;
-                            color: #ea580c;
-                            margin-bottom: 6px;
-                        }
-                        .muted {
-                            color: #6b7280;
-                            font-size: 12px;
-                            text-transform: uppercase;
-                            letter-spacing: 0.08em;
-                        }
-                        .invoice-number {
-                            font-size: 18px;
-                            font-weight: 700;
-                            margin-top: 4px;
-                        }
-                        table {
-                            width: 100%;
-                            border-collapse: collapse;
-                            margin-top: 18px;
-                        }
-                        th {
-                            text-align: left;
-                            font-size: 12px;
-                            text-transform: uppercase;
-                            letter-spacing: 0.08em;
-                            color: #6b7280;
-                            padding-bottom: 10px;
-                            border-bottom: 2px solid #d1d5db;
-                        }
-                        th:nth-child(2), td:nth-child(2) {
-                            text-align: center;
-                        }
-                        th:last-child, td:last-child {
-                            text-align: right;
-                        }
-                        .summary {
-                            margin-top: 26px;
-                            margin-left: auto;
-                            width: 320px;
-                        }
-                        .summary-row {
-                            display: flex;
-                            justify-content: space-between;
-                            padding: 10px 0;
-                            border-bottom: 1px solid #e5e7eb;
-                        }
-                        .summary-row.total {
-                            font-size: 20px;
-                            font-weight: 700;
-                            color: #ea580c;
-                            border-bottom: none;
-                            padding-top: 16px;
-                        }
-                        @media print {
-                            body {
-                                padding: 0;
-                            }
-                        }
-                    </style>
-                </head>
-                <body>
-                    <div class="sheet">
-                        <div class="header">
-                            <div>
-                                <div class="brand">Auto Assist</div>
-                                <div class="muted">Service Invoice</div>
-                            </div>
-                            <div>
-                                <div class="muted">Invoice Number</div>
-                                <div class="invoice-number">${invoice.invoiceNumber}</div>
-                            </div>
-                        </div>
-
-                        <div class="muted">Parts Used</div>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Part</th>
-                                    <th>Qty</th>
-                                    <th>Amount</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${partsMarkup}
-                            </tbody>
-                        </table>
-
-                        <div class="summary">
-                            <div class="summary-row">
-                                <span>Parts Total</span>
-                                <strong>Rs. ${partsTotal.toLocaleString()}</strong>
-                            </div>
-                            <div class="summary-row">
-                                <span>Labor Cost</span>
-                                <strong>Rs. ${laborCost.toLocaleString()}</strong>
-                            </div>
-                            ${tax > 0 ? `
-                                <div class="summary-row">
-                                    <span>Tax</span>
-                                    <strong>Rs. ${tax.toLocaleString()}</strong>
-                                </div>
-                            ` : ''}
-                            <div class="summary-row total">
-                                <span>Total</span>
-                                <span>Rs. ${displayTotal.toLocaleString()}</span>
-                            </div>
-                        </div>
+        printWindow.document.write(`<!DOCTYPE html>
+        <html>
+        <head>
+            <title>Invoice ${invoice.invoiceNumber}</title>
+            <meta charset="UTF-8" />
+            <style>
+                body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 32px; color: #22223b; background: #f8f9fa; }
+                .sheet { max-width: 800px; margin: 0 auto; background: #fff; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.08); padding: 40px 48px 32px 48px; }
+                .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
+                .brand { font-size: 32px; font-weight: 900; color: #ea580c; margin-bottom: 4px; letter-spacing: 1px; }
+                .muted { color: #6b7280; font-size: 15px; text-transform: uppercase; letter-spacing: 0.08em; }
+                .invoice-number { font-size: 22px; font-weight: 700; margin-top: 4px; color: #22223b; }
+                .vehicle-badge { display: inline-block; background: #fff7ed; border: 1.5px solid #fed7aa; border-radius: 8px; padding: 7px 18px; font-size: 16px; font-weight: 700; color: #ea580c; margin-bottom: 24px; }
+                .section-title { font-size: 18px; font-weight: 700; color: #ea580c; margin-top: 32px; margin-bottom: 12px; }
+                .summary { margin-top: 32px; margin-left: auto; width: 340px; background: #f6f6f6; border-radius: 10px; padding: 18px 24px 10px 24px; }
+                .summary-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #e5e7eb; font-size: 17px; }
+                .summary-row.total { font-size: 26px; font-weight: 900; color: #ea580c; border-bottom: none; padding-top: 18px; }
+                .footer { margin-top: 40px; text-align: center; color: #6b7280; font-size: 15px; }
+                .signature { margin-top: 40px; display: flex; justify-content: flex-end; }
+                .signature-box { border-top: 2px solid #ea580c; width: 180px; text-align: center; color: #ea580c; font-weight: 700; font-size: 18px; padding-top: 8px; }
+                @media print { body { padding: 0; background: #fff; } .sheet { box-shadow: none; border-radius: 0; padding: 0; } }
+            </style>
+        </head>
+        <body>
+            <div class="sheet">
+                <div class="header">
+                    <div>
+                        <div class="brand">Auto Assist</div>
+                        <div class="muted">Service Invoice</div>
                     </div>
-                </body>
-            </html>
-        `);
-
-        printWindow.document.close();
-        printWindow.focus();
+                    <div>
+                        <div class="muted">Invoice Number</div>
+                        <div class="invoice-number">${invoice.invoiceNumber}</div>
+                    </div>
+                </div>
+                ${vehicleName ? `<div class="vehicle-badge">🚗 ${vehicleName}</div>` : ''}
+                <div class="section-title">Parts Used</div>
+                <table style="width:100%;border-collapse:collapse;">
+                    <thead>
+                        <tr>
+                            <th style="text-align:left;padding-bottom:8px;color:#6b7280;font-size:14px;">Part</th>
+                            <th style="text-align:center;padding-bottom:8px;color:#6b7280;font-size:14px;">Qty</th>
+                            <th style="text-align:right;padding-bottom:8px;color:#6b7280;font-size:14px;">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>${partsMarkup}</tbody>
+                </table>
+                <div class="section-title">Summary</div>
+                <div class="summary">
+                    <div class="summary-row"><span>Labor Cost</span><strong>Rs. ${laborCost.toLocaleString()}</strong></div>
+                    <div class="summary-row"><span>Discount</span><strong style="color:#15803d;">- Rs. ${discount.toLocaleString()}</strong></div>
+                    <div class="summary-row"><span>VAT</span><strong>Rs. ${vat.toLocaleString()}</strong></div>
+                    <div class="summary-row total"><span>Total</span><span>Rs. ${total.toLocaleString()}</span></div>
+                </div>
+                <div class="signature"><div class="signature-box">Authorized Signature</div></div>
+                <div class="footer">
+                    Thank you for choosing Auto Assist. For queries, contact us at info@autoassist.com<br/>
+                    <span style="font-size:13px;">This is a system-generated invoice.</span>
+                </div>
+            </div>
+        </body>
+        </html>`);
         printWindow.print();
     };
 
     return (
-        <div className="fixed inset-0 bg-[#1C1C1A]/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-            <div className="bg-white rounded-[32px] w-full max-w-[500px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-                <div className="p-10">
-                    <div className="flex justify-between items-start mb-8">
-                        <div>
-                            <div className="text-[12px] font-bold text-[#ABABAB] uppercase tracking-wider mb-1">Invoice Number</div>
-                            <div className="text-[14px] font-mono font-bold text-[#1C1C1A]">{invoice.invoiceNumber}</div>
-                        </div>
-                        <button onClick={onClose} className="text-[24px] text-[#ABABAB] hover:text-[#1C1C1A]">&times;</button>
+        <div
+            style={{
+                display: isOpen ? 'flex' : 'none',
+                alignItems: 'center', justifyContent: 'center',
+                position: 'fixed', top: 0, left: 0,
+                width: '100vw', height: '100vh',
+                background: 'rgba(0,0,0,0.5)', zIndex: 9999, padding: '16px',
+            }}
+            onClick={onClose}
+        >
+            <div
+                style={{
+                    background: '#fff', maxWidth: 480, width: '100%',
+                    borderRadius: 20, overflow: 'hidden', position: 'relative',
+                    fontFamily: "'Segoe UI', Arial, sans-serif",
+                    maxHeight: '90vh', overflowY: 'auto',
+                }}
+                onClick={(e) => e.stopPropagation()}
+            >
+                {/* Header */}
+                <div style={{
+                    background: 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)',
+                    padding: '28px 28px 24px', textAlign: 'center', position: 'relative',
+                }}>
+                    <button onClick={onClose} style={{
+                        position: 'absolute', top: 14, right: 16,
+                        background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%',
+                        width: 32, height: 32, display: 'flex', alignItems: 'center',
+                        justifyContent: 'center', cursor: 'pointer', color: '#fff',
+                        fontSize: 18, fontWeight: 700, lineHeight: 1,
+                    }}>×</button>
+                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>
+                        Service Invoice
                     </div>
-
-                    <div className="space-y-6 mb-10">
-                        {normalizedParts.length > 0 && (
-                            <div className="pb-4 border-b border-[#F2F0EB]">
-                                <div className="text-[14px] text-[#6B6B67] mb-3">Parts Used</div>
-                                <div className="space-y-2">
-                                    {normalizedParts.map((item) => (
-                                        <div key={item.id} className="flex justify-between items-start gap-4">
-                                            <span className="text-[13px] text-[#1C1C1A]">{item.name} x{item.quantity}</span>
-                                            <span className="text-[13px] font-semibold text-[#1C1C1A] whitespace-nowrap">Rs. {item.lineTotal.toLocaleString()}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                        <div className="flex justify-between items-end pb-4 border-b border-[#F2F0EB]">
-                            <span className="text-[14px] text-[#6B6B67]">Parts Total</span>
-                            <span className="text-[16px] font-bold text-[#1C1C1A]">Rs. {partsTotal.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between items-end pb-4 border-b border-[#F2F0EB]">
-                            <span className="text-[14px] text-[#6B6B67]">Labor Cost</span>
-                            <span className="text-[16px] font-bold text-[#1C1C1A]">Rs. {laborCost.toLocaleString()}</span>
-                        </div>
-                        {tax > 0 && (
-                            <div className="flex justify-between items-end pb-4 border-b border-[#F2F0EB]">
-                                <span className="text-[14px] text-[#6B6B67]">Tax</span>
-                                <span className="text-[16px] font-bold text-[#1C1C1A]">Rs. {tax.toLocaleString()}</span>
-                            </div>
-                        )}
-                        <div className="flex justify-between items-end pt-2">
-                            <span className="text-[16px] font-bold text-[#1C1C1A]">Total Balance</span>
-                            <span className="text-[24px] font-extrabold text-[#E8470A]">Rs. {displayTotal.toLocaleString()}</span>
-                        </div>
+                    <div style={{ fontSize: 20, fontWeight: 800, color: '#fff', wordBreak: 'break-all' }}>
+                        #{invoice.invoiceNumber}
                     </div>
+                    {/* Vehicle name in header */}
+                    {vehicleName && (
+                        <div style={{
+                            marginTop: 10,
+                            display: 'inline-block',
+                            background: 'rgba(255,255,255,0.18)',
+                            borderRadius: 20,
+                            padding: '4px 14px',
+                            fontSize: 13,
+                            color: '#fff',
+                            fontWeight: 600,
+                        }}>
+                            🚗 {vehicleName}
+                        </div>
+                    )}
+                </div>
 
-                    <button
-                        onClick={handlePrint}
-                        className="w-full bg-[#18160F] text-white py-4 rounded-2xl font-bold hover:scale-[1.02] transition-all shadow-lg shadow-black/10"
-                    >
-                        🖨️ Download / Print
+                {/* Parts list */}
+                <div style={{ padding: '20px 28px 0' }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#ea580c', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+                        Parts Used
+                    </div>
+                    {parts.length > 0 ? (
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                            <thead>
+                                <tr>
+                                    <th style={{ textAlign: 'left', color: '#9ca3af', fontWeight: 500, paddingBottom: 6 }}>Part</th>
+                                    <th style={{ textAlign: 'center', color: '#9ca3af', fontWeight: 500, paddingBottom: 6 }}>Qty</th>
+                                    <th style={{ textAlign: 'right', color: '#9ca3af', fontWeight: 500, paddingBottom: 6 }}>Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {parts.map((item, i) => {
+                                    const name = item.part?.name || item.name || item.partName || '-';
+                                    const qty = item.quantity ?? 1;
+                                    const price = item.priceAtTime ?? item.part?.price ?? 0;
+                                    return (
+                                        <tr key={i}>
+                                            <td style={{ padding: '8px 0', borderBottom: '1px solid #f3f4f6', color: '#111827' }}>{name}</td>
+                                            <td style={{ padding: '8px 0', borderBottom: '1px solid #f3f4f6', textAlign: 'center', color: '#374151' }}>{qty}</td>
+                                            <td style={{ padding: '8px 0', borderBottom: '1px solid #f3f4f6', textAlign: 'right', color: '#111827', fontWeight: 600 }}>
+                                                Rs. {(price * qty).toLocaleString()}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    ) : (
+                        <div style={{ fontSize: 14, color: '#9ca3af', textAlign: 'center', padding: '12px 0' }}>
+                            No parts recorded for this invoice.
+                        </div>
+                    )}
+                </div>
+
+                {/* Summary rows */}
+                <div style={{ padding: '16px 28px 8px' }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#ea580c', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+                        Summary
+                    </div>
+                    {[
+                        { label: 'Labor Cost', value: `Rs. ${laborCost.toLocaleString()}`, color: '#111827' },
+                        { label: 'Discount', value: `− Rs. ${discount.toLocaleString()}`, color: '#15803d' },
+                        { label: 'VAT', value: `Rs. ${vat.toLocaleString()}`, color: '#111827' },
+                    ].map(({ label, value, color }) => (
+                        <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '11px 0', borderBottom: '1px solid #f3f4f6', fontSize: 15 }}>
+                            <span style={{ color: '#6b7280', fontWeight: 500 }}>{label}</span>
+                            <span style={{ fontWeight: 700, color }}>{value}</span>
+                        </div>
+                    ))}
+                </div>
+
+                {/* Total */}
+                <div style={{
+                    margin: '0 28px 20px',
+                    background: '#fff7ed', border: '1.5px solid #fed7aa',
+                    borderRadius: 12, padding: '14px 20px',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                }}>
+                    <span style={{ fontSize: 15, fontWeight: 600, color: '#9a3412' }}>Total Amount</span>
+                    <span style={{ fontSize: 24, fontWeight: 900, color: '#ea580c' }}>Rs. {total.toLocaleString()}</span>
+                </div>
+
+                {/* Print button */}
+                <div style={{ padding: '0 28px 24px' }}>
+                    <button onClick={handlePrint} style={{
+                        width: '100%',
+                        background: 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)',
+                        color: '#fff', border: 'none', borderRadius: 12,
+                        padding: '14px 0', fontWeight: 800, fontSize: 16,
+                        cursor: 'pointer', letterSpacing: '0.03em',
+                    }}>
+                        🖨️ Download / Print Invoice
                     </button>
-                    <p className="text-center text-[11px] text-[#ABABAB] mt-6">Thank you for choosing Auto Assist. Drive safe!</p>
                 </div>
             </div>
         </div>

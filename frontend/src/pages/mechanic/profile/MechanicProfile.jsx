@@ -5,11 +5,23 @@ import './MechanicProfile.css';
 const MechanicProfile = () => {
     const [activeTab, setActiveTab] = useState('personal');
     const [profile, setProfile] = useState({
+        id: '',
         name: '',
         email: '',
         phone: '',
-        speciality: ''
+        speciality: '',
+        shiftStart: '08:00',
+        shiftEnd: '17:00',
+        workDays: 'Monday – Friday',
+        notificationPrefs: {
+            newJobAssigned: true,
+            customerMessages: true,
+            partsAlerts: true,
+            dailySummary: false
+        }
     });
+    const [scheduleSaving, setScheduleSaving] = useState(false);
+    const [notifSaving, setNotifSaving] = useState(false);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState({ text: '', type: '' });
@@ -17,7 +29,8 @@ const MechanicProfile = () => {
     useEffect(() => {
         const fetchProfile = async () => {
             try {
-                const res = await api.get('/mechanic/profile');
+                // Backend route is /api/mechanics/profile
+                const res = await api.get('/mechanics/profile');
                 setProfile(res.data);
             } catch (error) {
                 console.error('Error fetching profile:', error);
@@ -32,17 +45,77 @@ const MechanicProfile = () => {
         setProfile({ ...profile, [e.target.name]: e.target.value });
     };
 
+    const handleScheduleChange = (e) => {
+        setProfile({ ...profile, [e.target.name]: e.target.value });
+    };
+
+    const handleNotifChange = (key, value) => {
+        setProfile({
+            ...profile,
+            notificationPrefs: {
+                ...profile.notificationPrefs,
+                [key]: value
+            }
+        });
+    };
+
     const handleSave = async () => {
         setSaving(true);
         setMessage({ text: '', type: '' });
         try {
-            await api.put('/mechanic/profile', profile);
+            const res = await api.put('/mechanics/profile', profile);
+            if (res.data && res.data.mechanic) {
+                setProfile(res.data.mechanic);
+            } else if (res.data && res.data.id) {
+                setProfile(res.data);
+            }
             setMessage({ text: 'Profile updated successfully!', type: 'success' });
         } catch (error) {
             console.error('Error saving profile:', error);
             setMessage({ text: 'Failed to update profile.', type: 'error' });
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleScheduleSave = async () => {
+        setScheduleSaving(true);
+        setMessage({ text: '', type: '' });
+        try {
+            const res = await api.put('/mechanics/profile', {
+                ...profile,
+                // Only send schedule fields
+                shiftStart: profile.shiftStart,
+                shiftEnd: profile.shiftEnd,
+                workDays: profile.workDays
+            });
+            if (res.data && res.data.mechanic) {
+                setProfile(prev => ({ ...prev, ...res.data.mechanic }));
+            }
+            setMessage({ text: 'Schedule updated!', type: 'success' });
+        } catch (error) {
+            setMessage({ text: 'Failed to update schedule.', type: 'error' });
+        } finally {
+            setScheduleSaving(false);
+        }
+    };
+
+    const handleNotifSave = async () => {
+        setNotifSaving(true);
+        setMessage({ text: '', type: '' });
+        try {
+            const res = await api.put('/mechanics/profile', {
+                ...profile,
+                notificationPrefs: profile.notificationPrefs
+            });
+            if (res.data && res.data.mechanic) {
+                setProfile(prev => ({ ...prev, ...res.data.mechanic }));
+            }
+            setMessage({ text: 'Preferences updated!', type: 'success' });
+        } catch (error) {
+            setMessage({ text: 'Failed to update preferences.', type: 'error' });
+        } finally {
+            setNotifSaving(false);
         }
     };
 
@@ -147,31 +220,33 @@ const MechanicProfile = () => {
                     {activeTab === 'schedule' && (
                         <div className="mechanic-profile__tab-pane">
                             <div className="mechanic-profile__two-col mechanic-profile__two-col--schedule">
-                                <InputGroup label="Shift Start" type="time" val="08:00" />
-                                <InputGroup label="Shift End" type="time" val="17:00" />
+                                <InputGroup label="Shift Start" type="time" name="shiftStart" val={profile.shiftStart || ''} onChange={handleScheduleChange} />
+                                <InputGroup label="Shift End" type="time" name="shiftEnd" val={profile.shiftEnd || ''} onChange={handleScheduleChange} />
                             </div>
                             <div className="mechanic-profile__field-block">
                                 <label className="mechanic-profile__label">Work Days</label>
-                                <select className="mechanic-profile__select">
-                                    <option>Monday – Friday</option>
-                                    <option>Monday – Saturday</option>
-                                    <option>Custom Shift</option>
+                                <select name="workDays" value={profile.workDays || ''} onChange={handleScheduleChange} className="mechanic-profile__select">
+                                    <option value="Monday – Friday">Monday – Friday</option>
+                                    <option value="Monday – Saturday">Monday – Saturday</option>
+                                    <option value="Custom Shift">Custom Shift</option>
                                 </select>
                             </div>
-                            <button className="mechanic-profile__primary-btn">
-                                Update Schedule
+                            <button className="mechanic-profile__primary-btn" onClick={handleScheduleSave} disabled={scheduleSaving}>
+                                {scheduleSaving ? 'Saving...' : 'Update Schedule'}
                             </button>
                         </div>
                     )}
 
                     {activeTab === 'notifs' && (
                         <div className="mechanic-profile__tab-pane mechanic-profile__tab-pane--divided">
-                            <ToggleRow title="New Job Assigned" desc="Alert when added to your queue" on />
-                            <ToggleRow title="Customer Messages" desc="Push when customer replies" on />
-                            <ToggleRow title="Parts Alerts" desc="When requested parts arrive" on />
-                            <ToggleRow title="Daily Summary" desc="End of day job report" />
+                            <ToggleRow title="New Job Assigned" desc="Alert when added to your queue" on={profile.notificationPrefs?.newJobAssigned} onChange={v => handleNotifChange('newJobAssigned', v)} />
+                            <ToggleRow title="Customer Messages" desc="Push when customer replies" on={profile.notificationPrefs?.customerMessages} onChange={v => handleNotifChange('customerMessages', v)} />
+                            <ToggleRow title="Parts Alerts" desc="When requested parts arrive" on={profile.notificationPrefs?.partsAlerts} onChange={v => handleNotifChange('partsAlerts', v)} />
+                            <ToggleRow title="Daily Summary" desc="End of day job report" on={profile.notificationPrefs?.dailySummary} onChange={v => handleNotifChange('dailySummary', v)} />
                             <div className="mechanic-profile__footer-action">
-                                <button className="mechanic-profile__primary-btn">Save Preferences</button>
+                                <button className="mechanic-profile__primary-btn" onClick={handleNotifSave} disabled={notifSaving}>
+                                    {notifSaving ? 'Saving...' : 'Save Preferences'}
+                                </button>
                             </div>
                         </div>
                     )}
@@ -212,8 +287,7 @@ const InputGroup = ({ label, name, val, onChange, type = "text", isMono = false,
     </div>
 );
 
-const ToggleRow = ({ title, desc, on = false }) => {
-    const [isOn, setIsOn] = useState(on);
+const ToggleRow = ({ title, desc, on = false, onChange }) => {
     return (
         <div className="mechanic-profile__toggle-row">
             <div>
@@ -221,10 +295,10 @@ const ToggleRow = ({ title, desc, on = false }) => {
                 <p className="mechanic-profile__toggle-desc">{desc}</p>
             </div>
             <div
-                className={`mechanic-profile__switch ${isOn ? 'mechanic-profile__switch--on' : ''}`}
-                onClick={() => setIsOn(!isOn)}
+                className={`mechanic-profile__switch ${on ? 'mechanic-profile__switch--on' : ''}`}
+                onClick={() => onChange && onChange(!on)}
             >
-                <div className={`mechanic-profile__switch-knob ${isOn ? 'mechanic-profile__switch-knob--on' : ''}`}></div>
+                <div className={`mechanic-profile__switch-knob ${on ? 'mechanic-profile__switch-knob--on' : ''}`}></div>
             </div>
         </div>
     );

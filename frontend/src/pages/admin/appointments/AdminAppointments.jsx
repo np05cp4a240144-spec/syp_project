@@ -29,9 +29,7 @@ const AdminAppointments = () => {
         }
     };
 
-    useEffect(() => {
-        fetchData();
-    }, []);
+    useEffect(() => { fetchData(); }, []);
 
     const handleAssign = async (appointmentId, mechanicId) => {
         try {
@@ -54,18 +52,11 @@ const AdminAppointments = () => {
     const filteredAppointments = appointments.filter(app => {
         const passesFilter = activeFilter === 'All' ? true : app.status === activeFilter;
         if (!passesFilter) return false;
-
         if (!searchTerm.trim()) return true;
         const haystack = [
-            app.vehicle?.make,
-            app.vehicle?.model,
-            app.vehicle?.plate,
-            app.user?.name,
-            app.service,
-            app.mechanic?.name,
-            app.status
+            app.vehicle?.make, app.vehicle?.model, app.vehicle?.plate,
+            app.user?.name, app.service, app.mechanic?.name, app.status
         ].filter(Boolean).join(' ').toLowerCase();
-
         return haystack.includes(searchTerm.trim().toLowerCase());
     });
 
@@ -75,16 +66,31 @@ const AdminAppointments = () => {
     };
 
     const openInvoice = (app) => {
-        const fallbackInvoice = {
-            invoiceNumber: app?.invoice?.invoiceNumber || `APP-${app?.id || 'N/A'}`,
-            partsTotal: app?.invoice?.partsTotal || 0,
-            laborCost: app?.invoice?.laborCost || Math.max((app?.amount || 0) - (app?.invoice?.partsTotal || 0), 0),
-            tax: app?.invoice?.tax || 0,
-            totalAmount: app?.invoice?.totalAmount || getAppointmentAmount(app),
-            parts: app?.parts || app?.invoice?.appointment?.parts || []
-        };
+        const vehicleName = [app?.vehicle?.make, app?.vehicle?.model]
+            .filter(Boolean).join(' ') || '-';
+        const customerName = app?.user?.name || '-';
 
-        setSelectedInvoice(fallbackInvoice);
+        if (app.invoice) {
+            setSelectedInvoice({
+                ...app.invoice,
+                parts: app.parts || [],
+                vehicleName,
+                customerName,
+            });
+        } else {
+            setSelectedInvoice({
+                invoiceNumber: `APP-${app?.id || 'N/A'}`,
+                partsTotal: 0,
+                laborCost: Math.max((app?.amount || 0), 0),
+                tax: 0,
+                totalAmount: getAppointmentAmount(app),
+                parts: app?.parts || [],
+                vehicleName,
+                customerName,
+                appointmentDate: app?.createdAt || null,
+                discountAmount: 0,
+            });
+        }
         setIsInvoiceModalOpen(true);
     };
 
@@ -101,7 +107,7 @@ const AdminAppointments = () => {
         { label: 'In Progress', count: counts['In Progress'] },
         { label: 'Pending', count: counts.Pending },
         { label: 'Completed', count: counts.Completed },
-        { label: 'Cancelled', count: counts.Cancelled }
+        { label: 'Cancelled', count: counts.Cancelled },
     ];
 
     if (loading) {
@@ -125,7 +131,6 @@ const AdminAppointments = () => {
                             {f.label} ({f.count})
                         </button>
                     ))}
-
                     <div className="admin-appt__toolbar-right">
                         <div className="admin-appt__search-wrap">
                             <span className="admin-appt__search-icon">🔍</span>
@@ -204,7 +209,6 @@ const AdminAppointments = () => {
                                 <h3 className="admin-appt__modal-title">Appointment Details</h3>
                                 <button className="admin-appt__modal-close" onClick={() => setSelectedAppointment(null)}>&times;</button>
                             </div>
-
                             <div className="admin-appt__modal-grid">
                                 <DetailItem label="Vehicle" value={`${selectedAppointment.vehicle?.make || '-'} ${selectedAppointment.vehicle?.model || ''}`.trim()} />
                                 <DetailItem label="Plate" value={selectedAppointment.vehicle?.plate || '-'} />
@@ -215,7 +219,6 @@ const AdminAppointments = () => {
                                 <DetailItem label="Time" value={selectedAppointment.time || '-'} />
                                 <DetailItem label="Amount" value={`Rs. ${getAppointmentAmount(selectedAppointment).toLocaleString()}`} />
                             </div>
-
                             <div className="admin-appt__modal-actions">
                                 <button className="admin-appt__action-btn" onClick={() => openInvoice(selectedAppointment)}>Open Invoice</button>
                                 <button className="admin-appt__action-btn" onClick={() => setSelectedAppointment(null)}>Close</button>
@@ -236,10 +239,7 @@ const AdminAppointments = () => {
 
 const ApptRow = ({ id, car, plate, cust, i, cBg, svc, mechId, mechBg, mechI, time, status, sColor, amt, mechanics, onAssign, onView, onInvoice }) => {
     const isUnassigned = !mechId;
-    const colorMap = {
-        '#F06A00': 'admin-appt__badge-bg--brand',
-        '#64748B': 'admin-appt__badge-bg--muted'
-    };
+    const colorMap = { '#F06A00': 'admin-appt__badge-bg--brand', '#64748B': 'admin-appt__badge-bg--muted' };
 
     return (
         <tr className="admin-appt__row">
@@ -253,9 +253,7 @@ const ApptRow = ({ id, car, plate, cust, i, cBg, svc, mechId, mechBg, mechI, tim
                     <div className="admin-appt__cust-name">{cust}</div>
                 </div>
             </td>
-            <td>
-                <div className="admin-appt__svc">{svc}</div>
-            </td>
+            <td><div className="admin-appt__svc">{svc}</div></td>
             <td>
                 <div className="admin-appt__mech-wrap">
                     <div className={`admin-appt__mech-avatar ${isUnassigned ? 'admin-appt__mech-avatar--unassigned' : (colorMap[mechBg] || 'admin-appt__badge-bg--muted')}`}>{isUnassigned ? '?' : mechI}</div>
@@ -265,24 +263,18 @@ const ApptRow = ({ id, car, plate, cust, i, cBg, svc, mechId, mechBg, mechI, tim
                         className={`admin-appt__mech-select ${isUnassigned ? 'admin-appt__mech-select--unassigned' : ''}`}
                     >
                         <option value="">Unassigned</option>
-                        {mechanics.map(m => (
-                            <option key={m.id} value={m.id}>{m.name}</option>
-                        ))}
+                        {mechanics.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                     </select>
                 </div>
             </td>
-            <td>
-                <div className="admin-appt__time">{time}</div>
-            </td>
+            <td><div className="admin-appt__time">{time}</div></td>
             <td>
                 <div className={`admin-appt__status ${sColor === 'orange' ? 'admin-appt__status--orange' : sColor === 'blue' ? 'admin-appt__status--blue' : sColor === 'yellow' ? 'admin-appt__status--yellow' : sColor === 'purple' ? 'admin-appt__status--purple' : 'admin-appt__status--green'}`}>
                     <span className="admin-appt__status-dot"></span>
                     {status}
                 </div>
             </td>
-            <td>
-                <div className="admin-appt__amount">{amt}</div>
-            </td>
+            <td><div className="admin-appt__amount">{amt}</div></td>
             <td className="admin-appt__actions-col">
                 <div className="admin-appt__actions">
                     <button className="admin-appt__action-btn" onClick={onView}>View</button>
@@ -301,4 +293,3 @@ const DetailItem = ({ label, value }) => (
 );
 
 export default AdminAppointments;
-
