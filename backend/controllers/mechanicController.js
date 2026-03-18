@@ -148,6 +148,8 @@ const updateMechanicProfile = async (req, res) => {
     }
 };
 
+
+
 module.exports = {
     getMechanics,
     createMechanic,

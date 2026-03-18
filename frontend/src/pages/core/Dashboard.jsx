@@ -24,6 +24,7 @@ import {
     CalendarDays
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import api from '../../api/axios';
 import './Dashboard.css';
 
 const chartHeightClassMap = {
@@ -65,6 +66,9 @@ const Dashboard = () => {
     const { user, logout } = useAuth();
     const [activeTab, setActiveTab] = useState('Weekly');
     const [currentDate, setCurrentDate] = useState('');
+    const [revenueData, setRevenueData] = useState([]);
+    const [monthlyTotal, setMonthlyTotal] = useState(0);
+    const [yearlyTotal, setYearlyTotal] = useState(0);
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -73,8 +77,46 @@ const Dashboard = () => {
         setCurrentDate(now.toLocaleDateString('en-GB', opts));
     }, []);
 
+    // Fetch combined revenue data from bookings and parts sales
+    useEffect(() => {
+        const fetchRevenueData = async () => {
+            try {
+                const [bookingsRes, partsRes] = await Promise.all([
+                    api.get('/bookings/revenue'),
+                    api.get('/inventory/sales/revenue')
+                ]);
+
+                const bookingMonthly = bookingsRes.data?.monthlyRevenue || Array(8).fill(0);
+                const partsMonthly = partsRes.data?.monthlyRevenue || Array(8).fill(0);
+
+                // Combine both revenue sources
+                const combined = bookingMonthly.map((val, idx) => {
+                    const partVal = partsMonthly[idx] || 0;
+                    const total = val + partVal;
+                    // Convert to thousands for chart display (e.g., 24180 -> 82)
+                    return Math.round(total / 300);
+                });
+
+                setRevenueData(combined);
+                
+                // Calculate totals
+                const totalMonth = (bookingsRes.data?.thisMonth || 0) + (partsRes.data?.thisMonth || 0);
+                const totalYear = (bookingsRes.data?.thisYear || 0) + (partsRes.data?.thisYear || 0);
+                
+                setMonthlyTotal(totalMonth);
+                setYearlyTotal(totalYear);
+            } catch (error) {
+                console.error('Error fetching revenue data:', error);
+                // Fallback to default data
+                setRevenueData([68, 82, 58, 91, 74, 96, 79, 100]);
+                setMonthlyTotal(24180);
+            }
+        };
+
+        fetchRevenueData();
+    }, []);
+
     const weeks = ['Jan 6', 'Jan 13', 'Jan 20', 'Jan 27', 'Feb 3', 'Feb 10', 'Feb 17', 'Feb 24'];
-    const revenueData = [68, 82, 58, 91, 74, 96, 79, 100];
     const targetData = [75, 75, 75, 80, 80, 85, 85, 90];
 
     return (
@@ -156,11 +198,11 @@ const Dashboard = () => {
                             <div className="dash-panel__body">
                                 <div className="dash-revenue__meta">
                                     <div>
-                                        <div className="dash-revenue__value">$24,180</div>
-                                        <div className="dash-revenue__hint">Total this month <span>up 18.4%</span></div>
+                                        <div className="dash-revenue__value">Rs. {monthlyTotal.toLocaleString()}</div>
+                                        <div className="dash-revenue__hint">Appointment + Parts Sales <span>Total Revenue</span></div>
                                     </div>
                                     <div className="dash-revenue__legend">
-                                        <div><span className="dash-dot dash-dot--orange"></span> Revenue</div>
+                                        <div><span className="dash-dot dash-dot--orange"></span> Appointment + Parts</div>
                                         <div><span className="dash-dot dash-dot--target"></span> Target</div>
                                     </div>
                                 </div>

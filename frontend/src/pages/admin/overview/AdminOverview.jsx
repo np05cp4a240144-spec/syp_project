@@ -22,6 +22,7 @@ const AdminOverview = () => {
     const [inventory, setInventory] = useState([]);
     const [revenueData, setRevenueData] = useState(null);
     const [partsStats, setPartsStats] = useState({ totalRevenue: 0, thisMonth: 0, thisYear: 0, monthlyRevenue: [] });
+    const [combinedMonthlyRevenue, setCombinedMonthlyRevenue] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -51,6 +52,16 @@ const AdminOverview = () => {
         };
         fetchData();
     }, []);
+
+    // Combine booking and parts sales revenue for chart
+    useEffect(() => {
+        if (revenueData && partsStats) {
+            const bookingMonthly = revenueData.monthlyRevenue || Array(12).fill(0);
+            const partsMonthly = partsStats.monthlyRevenue || Array(12).fill(0);
+            const combined = bookingMonthly.map((val, idx) => (val || 0) + (partsMonthly[idx] || 0));
+            setCombinedMonthlyRevenue(combined);
+        }
+    }, [revenueData, partsStats]);
 
     const getInitials = (name) => {
         if (!name) return '??';
@@ -163,10 +174,15 @@ const AdminOverview = () => {
 
             <div className="admin-overview__top-row">
                 <section className="admin-overview__panel admin-overview__panel--chart">
-                    <h3 className="admin-overview__panel-title">Revenue Growth (2026)</h3>
-                    {revenueData ? (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                            <h3 className="admin-overview__panel-title">Revenue Growth (2026)</h3>
+                            <p style={{ fontSize: '12px', color: '#6b7280', margin: '4px 0 0 0' }}>Appointment Services + Direct Parts Sales</p>
+                        </div>
+                    </div>
+                    {combinedMonthlyRevenue.length > 0 ? (
                         <div className="admin-overview__chart-shell">
-                            <RevenueLineGraph data={revenueData.monthlyRevenue} />
+                            <RevenueLineGraph data={combinedMonthlyRevenue} />
                         </div>
                     ) : (
                         <div className="admin-overview__chart-error">

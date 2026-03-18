@@ -1,6 +1,7 @@
 import React from 'react';
 
 const InvoiceModal = ({ isOpen, onClose, invoice }) => {
+
     if (!isOpen || !invoice) return null;
 
     const laborCost = invoice.laborCost || 0;
@@ -8,7 +9,8 @@ const InvoiceModal = ({ isOpen, onClose, invoice }) => {
     const vat = invoice.taxAmount ?? invoice.tax ?? 0;
     const partsTotal = invoice.partsTotal || 0;
     const total = invoice.totalAmount ?? (partsTotal + laborCost - discount + vat);
-    if (total === 0) return null;
+    // Hide modal if total is zero or less
+    if (total <= 0) return null;
     const parts = Array.isArray(invoice.parts) ? invoice.parts : [];
     const vehicleName = invoice.vehicleName || '';
 

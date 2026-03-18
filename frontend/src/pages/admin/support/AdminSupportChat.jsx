@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import { useSocket } from '../../../context/SocketContext';
 import api from '../../../api/axios';
-import '../../../pages/mechanic/chat/MechanicChat.css';
+import './AdminSupportChat.css';
 
 const AdminSupportChat = () => {
   const { user } = useAuth();
@@ -126,14 +126,25 @@ const AdminSupportChat = () => {
         </div>
 
         <div className="mechanic-chat__messages">
-          {messages.map((m) => (
-            <div key={m.id} className={`mechanic-chat__msg-wrap ${m.senderId === user.id ? 'mechanic-chat__msg-wrap--mine' : 'mechanic-chat__msg-wrap--other'}`}>
-              <div className={`mechanic-chat__msg-bubble ${m.senderId === user.id ? 'mechanic-chat__msg-bubble--mine' : 'mechanic-chat__msg-bubble--other'}`}>
-                {m.content}
+          {messages.map((m) => {
+            // Detect payment failure message (customize as needed)
+            const isPaymentFail = /payment failed|payment-failure|payment unsuccessful/i.test(m.content);
+            return (
+              <div key={m.id} className={`admin-chat__msg-wrap ${m.senderId === user.id ? 'admin-chat__msg-wrap--mine' : 'admin-chat__msg-wrap--other'}`}>
+                <div
+                  className={`admin-chat__msg-bubble ${m.senderId === user.id ? 'admin-chat__msg-bubble--mine' : 'admin-chat__msg-bubble--other'} ${isPaymentFail ? 'admin-chat__msg-bubble--alert' : ''}`}
+                  style={isPaymentFail ? { background: '#fff4e5', border: '1px solid #f97316', color: '#9a3412', fontWeight: 600, borderRadius: '8px', padding: '10px' } : {}}>
+                  {isPaymentFail ? (
+                    <>
+                      <span style={{ display: 'block', fontWeight: 700, color: '#d97706', marginBottom: 4 }}>Payment Alert</span>
+                      <span>{m.content}</span>
+                    </>
+                  ) : m.content}
+                </div>
+                <div className="admin-chat__msg-time">{new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
               </div>
-              <div className="mechanic-chat__msg-time">{new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <div className="mechanic-chat__composer-wrap">

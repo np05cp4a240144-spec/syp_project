@@ -70,15 +70,16 @@ const AdminAppointments = () => {
             .filter(Boolean).join(' ') || '-';
         const customerName = app?.user?.name || '-';
 
+        let invoiceData;
         if (app.invoice) {
-            setSelectedInvoice({
+            invoiceData = {
                 ...app.invoice,
                 parts: app.parts || [],
                 vehicleName,
                 customerName,
-            });
+            };
         } else {
-            setSelectedInvoice({
+            invoiceData = {
                 invoiceNumber: `APP-${app?.id || 'N/A'}`,
                 partsTotal: 0,
                 laborCost: Math.max((app?.amount || 0), 0),
@@ -89,9 +90,19 @@ const AdminAppointments = () => {
                 customerName,
                 appointmentDate: app?.createdAt || null,
                 discountAmount: 0,
-            });
+            };
         }
-        setIsInvoiceModalOpen(true);
+        // Only open modal if total is greater than zero
+        const total = invoiceData.totalAmount ?? (invoiceData.partsTotal + invoiceData.laborCost - (invoiceData.discountAmount ?? 0) + (invoiceData.tax ?? 0));
+        if (total > 0) {
+            setSelectedInvoice(invoiceData);
+            setIsInvoiceModalOpen(true);
+        } else {
+            // Show a professional message for zero bill
+            window.alert('No invoice is available for this appointment as the total bill is Rs. 0. If you believe this is an error, please contact Auto Assist support.');
+            setSelectedInvoice(null);
+            setIsInvoiceModalOpen(false);
+        }
     };
 
     const counts = {
