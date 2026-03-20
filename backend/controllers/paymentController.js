@@ -329,4 +329,33 @@ const verifyKhaltiPayment = async (req, res) => {
     }
 };
 
-module.exports = { initiateKhaltiPayment, verifyKhaltiPayment };
+const getAdminPaymentNotifications = async (req, res) => {
+    try {
+        const since = new Date(Date.now() - (24 * 60 * 60 * 1000));
+
+        const [recentPaidAppointments, recentPartsPayments] = await Promise.all([
+            prisma.appointment.count({
+                where: {
+                    isPaid: true,
+                    updatedAt: { gte: since }
+                }
+            }),
+            prisma.pendingPartPayment.count({
+                where: {
+                    status: 'COMPLETED',
+                    updatedAt: { gte: since }
+                }
+            })
+        ]);
+
+        res.json({
+            recentPaidAppointments,
+            recentPartsPayments,
+            totalRecentPayments: recentPaidAppointments + recentPartsPayments
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message || 'Failed to load payment notifications' });
+    }
+};
+
+module.exports = { initiateKhaltiPayment, verifyKhaltiPayment, getAdminPaymentNotifications };

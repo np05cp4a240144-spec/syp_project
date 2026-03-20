@@ -121,14 +121,14 @@ const updateUserRole = async (req, res) => {
     try {
         const userId = parseInt(req.params.id);
         const { role } = req.body || {};
-        const allowedRoles = ['ADMIN', 'MECHANIC', 'USER'];
+        const allowedRoles = ['MECHANIC', 'USER'];
 
         if (!Number.isFinite(userId)) {
             return res.status(400).json({ error: 'Invalid user id' });
         }
 
         if (!allowedRoles.includes(role)) {
-            return res.status(400).json({ error: 'Invalid role' });
+            return res.status(400).json({ error: 'Only MECHANIC or USER roles can be assigned' });
         }
 
         if (req.user?.id === userId && role !== 'ADMIN') {
