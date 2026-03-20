@@ -302,6 +302,14 @@ const UserRolesSettings = ({ onSaved }) => {
         loadUsers();
     }, []);
 
+    const roleLabel = (role) => {
+        if (role === 'ADMIN') return 'Super Admin';
+        if (role === 'MECHANIC') return 'Mechanic';
+        return 'Customer';
+    };
+
+    const roleColor = (role) => (role === 'ADMIN' ? 'orange' : 'blue');
+
     const startEdit = (user) => {
         setEditingUserId(user.id);
         setRoleDraft(user.role || 'USER');
@@ -310,6 +318,31 @@ const UserRolesSettings = ({ onSaved }) => {
     const cancelEdit = () => {
         setEditingUserId(null);
         setRoleDraft('USER');
+    };
+
+    const saveRole = async () => {
+        if (!editingUserId) return;
+
+        try {
+            setSavingRole(true);
+            setUsersError('');
+
+            const res = await api.put(`/auth/users/${editingUserId}/role`, {
+                role: roleDraft
+            });
+
+            const updatedUser = res.data;
+            setUsers((prev) =>
+                prev.map((user) => (user.id === editingUserId ? { ...user, ...updatedUser } : user))
+            );
+
+            onSaved('User role updated');
+            cancelEdit();
+        } catch (error) {
+            setUsersError(error?.response?.data?.error || 'Failed to update user role.');
+        } finally {
+            setSavingRole(false);
+        }
     };
 
     return (
@@ -356,7 +389,6 @@ const UserRolesSettings = ({ onSaved }) => {
                                             <td>
                                                 {isEditing ? (
                                                     <select className="admin-settings__role-select" value={roleDraft} onChange={(e) => setRoleDraft(e.target.value)}>
-                                                        <option value="ADMIN">Super Admin</option>
                                                         <option value="MECHANIC">Mechanic</option>
                                                         <option value="USER">Customer</option>
                                                     </select>

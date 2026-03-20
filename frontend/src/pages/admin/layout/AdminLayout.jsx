@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import api from '../../../api/axios';
@@ -70,16 +70,17 @@ const AdminLayout = () => {
         return () => document.removeEventListener('mousedown', handleOutsideClick);
     }, []);
 
-    useEffect(() => {
-        const fetchNotifications = async () => {
-            try {
-                const [bookingsRes, inventoryRes] = await Promise.all([
-                    api.get('/bookings/admin'),
-                    api.get('/inventory')
-                ]);
+    const fetchNotifications = useCallback(async () => {
+        try {
+            const [bookingsRes, inventoryRes, paymentsRes] = await Promise.all([
+                api.get('/bookings/admin'),
+                api.get('/inventory'),
+                api.get('/payment/admin/notifications')
+            ]);
 
-                const bookings = bookingsRes.data || [];
-                const inventory = inventoryRes.data || [];
+            const bookings = bookingsRes.data || [];
+            const inventory = inventoryRes.data || [];
+            const paymentStats = paymentsRes.data || {};
 
                 const getStock = (item) => {
                     const raw = item?.stock ?? item?.quantity ?? 0;
@@ -93,79 +94,94 @@ const AdminLayout = () => {
                     return Number.isFinite(parsed) && parsed > 0 ? parsed : 5;
                 };
 
-                const pendingCount = bookings.filter((b) => b.status === 'Pending').length;
-                const unassignedCount = bookings.filter((b) => !b.mechanicId).length;
-                const inProgressCount = bookings.filter((b) => b.status === 'In Progress').length;
-                const lowStockCount = inventory.filter((item) => {
-                    const stock = getStock(item);
-                    const minStock = getMinStock(item);
-                    return stock > 0 && stock <= minStock;
-                }).length;
-                const outOfStockCount = inventory.filter((item) => getStock(item) <= 0).length;
-                const prefs = getNotificationPrefs();
+            const pendingCount = bookings.filter((b) => b.status === 'Pending').length;
+            const unassignedCount = bookings.filter((b) => !b.mechanicId).length;
+            const inProgressCount = bookings.filter((b) => b.status === 'In Progress').length;
+            const lowStockCount = inventory.filter((item) => {
+                const stock = getStock(item);
+                const minStock = getMinStock(item);
+                return stock > 0 && stock <= minStock;
+            }).length;
+            const outOfStockCount = inventory.filter((item) => getStock(item) <= 0).length;
+            const recentPaidAppointments = Number(paymentStats.recentPaidAppointments || 0);
+            const recentPartsPayments = Number(paymentStats.recentPartsPayments || 0);
+            const prefs = getNotificationPrefs();
 
-                setSidebarBadgeCounts({
-                    appointments: pendingCount,
-                    inventory: lowStockCount + outOfStockCount
+            setSidebarBadgeCounts({
+                appointments: pendingCount,
+                inventory: lowStockCount + outOfStockCount
+            });
+
+            const nextNotifications = [];
+
+            if (prefs.newBookingAlerts && pendingCount > 0) {
+                nextNotifications.push({
+                    id: 'pending-jobs',
+                    type: 'warning',
+                    title: 'Pending appointments',
+                    message: `${pendingCount} appointment(s) are waiting for action.`
                 });
-
-                const nextNotifications = [];
-
-                if (prefs.newBookingAlerts && pendingCount > 0) {
-                    nextNotifications.push({
-                        id: 'pending-jobs',
-                        type: 'warning',
-                        title: 'Pending appointments',
-                        message: `${pendingCount} appointment(s) are waiting for action.`
-                    });
-                }
-
-                if (prefs.newBookingAlerts && unassignedCount > 0) {
-                    nextNotifications.push({
-                        id: 'unassigned-jobs',
-                        type: 'warning',
-                        title: 'Mechanic assignment',
-                        message: `${unassignedCount} appointment(s) are still unassigned.`
-                    });
-                }
-
-                if (prefs.dailyDigest && inProgressCount > 0) {
-                    nextNotifications.push({
-                        id: 'active-jobs',
-                        type: 'info',
-                        title: 'Active services',
-                        message: `${inProgressCount} appointment(s) are currently in progress.`
-                    });
-                }
-
-                if (prefs.lowStockAlerts && lowStockCount > 0) {
-                    nextNotifications.push({
-                        id: 'low-stock',
-                        type: 'warning',
-                        title: 'Inventory warning',
-                        message: `${lowStockCount} item(s) are running low (<= 5 units).`
-                    });
-                }
-
-                if (prefs.lowStockAlerts && outOfStockCount > 0) {
-                    nextNotifications.push({
-                        id: 'out-of-stock',
-                        type: 'warning',
-                        title: 'Inventory critical',
-                        message: `${outOfStockCount} item(s) are out of stock.`
-                    });
-                }
-
-                setNotifications(nextNotifications);
-            } catch (error) {
-                console.error('Error fetching admin notifications:', error);
-                setNotifications([]);
-                setSidebarBadgeCounts({ appointments: 0, inventory: 0 });
             }
-        };
 
+            if (prefs.newBookingAlerts && unassignedCount > 0) {
+                nextNotifications.push({
+                    id: 'unassigned-jobs',
+                    type: 'warning',
+                    title: 'Mechanic assignment',
+                    message: `${unassignedCount} appointment(s) are still unassigned.`
+                });
+            }
+
+            if (prefs.dailyDigest && inProgressCount > 0) {
+                nextNotifications.push({
+                    id: 'active-jobs',
+                    type: 'info',
+                    title: 'Active services',
+                    message: `${inProgressCount} appointment(s) are currently in progress.`
+                });
+            }
+
+            if (prefs.lowStockAlerts && lowStockCount > 0) {
+                nextNotifications.push({
+                    id: 'low-stock',
+                    type: 'warning',
+                    title: 'Inventory warning',
+                    message: `${lowStockCount} item(s) are running low (<= 5 units).`
+                });
+            }
+
+            if (prefs.lowStockAlerts && outOfStockCount > 0) {
+                nextNotifications.push({
+                    id: 'out-of-stock',
+                    type: 'warning',
+                    title: 'Inventory critical',
+                    message: `${outOfStockCount} item(s) are out of stock.`
+                });
+            }
+
+            if (prefs.paymentConfirmations && (recentPaidAppointments > 0 || recentPartsPayments > 0)) {
+                nextNotifications.push({
+                    id: 'payment-confirmations',
+                    type: 'success',
+                    title: 'Payment confirmations',
+                    message: `${recentPaidAppointments} service payment(s) and ${recentPartsPayments} parts payment(s) confirmed in last 24 hours.`
+                });
+            }
+
+            setNotifications(nextNotifications);
+        } catch (error) {
+            console.error('Error fetching admin notifications:', error);
+            setNotifications([]);
+            setSidebarBadgeCounts({ appointments: 0, inventory: 0 });
+        }
+    }, []);
+
+    useEffect(() => {
         fetchNotifications();
-    }, [location.pathname]);
+
+        const refreshTimer = setInterval(fetchNotifications, 30000);
+        return () => clearInterval(refreshTimer);
+    }, [fetchNotifications, location.pathname]);
 
     const handleLogout = () => {
         logout();
@@ -193,7 +209,7 @@ const AdminLayout = () => {
     };
 
     const unreadCount = useMemo(
-        () => notifications.filter((item) => item.type === 'warning' && !dismissedNotificationIds.includes(item.id)).length,
+        () => notifications.filter((item) => !dismissedNotificationIds.includes(item.id)).length,
         [notifications, dismissedNotificationIds]
     );
 
