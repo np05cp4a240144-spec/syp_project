@@ -376,6 +376,16 @@
 	box-shadow: 0 8px 16px rgba(24, 22, 15, 0.2);
 }
 
+.customer-booking-calendar-date.is-disabled {
+	color: #d2ccc1;
+	cursor: not-allowed;
+	pointer-events: none;
+}
+
+.customer-booking-calendar-date.is-disabled:hover {
+	background: transparent;
+}
+
 .customer-booking-time-caption-date {
 	color: #18160f;
 	text-transform: none;
@@ -410,6 +420,18 @@
 	border-color: #e8470a;
 	background: #fff0ea;
 	color: #e8470a;
+}
+
+.customer-booking-time-slot.is-disabled {
+	opacity: 0.55;
+	cursor: not-allowed;
+	background: #f7f5f1;
+	border-color: #e8e4dc;
+	color: #a8a093;
+}
+
+.customer-booking-time-slot.is-disabled:hover {
+	border-color: #e8e4dc;
 }
 
 .customer-booking-review-card {

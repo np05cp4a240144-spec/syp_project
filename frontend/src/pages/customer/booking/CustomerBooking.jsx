@@ -3,6 +3,22 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import api from '../../../api/axios';
 
+const TIME_SLOTS = ['8:00 AM', '9:00 AM', '10:30 AM', '1:00 PM', '2:30 PM', '4:00 PM'];
+
+const parseTimeLabelToMinutes = (label) => {
+    const match = String(label || '').trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    if (!match) return null;
+
+    let hour = parseInt(match[1], 10);
+    const minute = parseInt(match[2], 10);
+    const period = match[3].toUpperCase();
+
+    if (period === 'PM' && hour !== 12) hour += 12;
+    if (period === 'AM' && hour === 12) hour = 0;
+
+    return hour * 60 + minute;
+};
+
 const CustomerBooking = () => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -12,7 +28,11 @@ const CustomerBooking = () => {
 
     const [selectedServices, setSelectedServices] = useState(['Oil & Filter Change']);
     const [selectedVehicle, setSelectedVehicle] = useState(null);
-    const [selectedDate, setSelectedDate] = useState(new Date().getDate() + 1);
+    const [selectedDate, setSelectedDate] = useState(() => {
+        const now = new Date();
+        const daysInCurrentMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+        return now.getDate() < daysInCurrentMonth ? now.getDate() + 1 : now.getDate();
+    });
     const [selectedTime, setSelectedTime] = useState('9:00 AM');
     const hasInitializedReschedule = useRef(false);
 
@@ -23,6 +43,22 @@ const CustomerBooking = () => {
     const currentMonth = today.toLocaleString('default', { month: 'long' });
     const currentYear = today.getFullYear();
     const daysInMonth = new Date(currentYear, today.getMonth() + 1, 0).getDate();
+    const todayDateNumber = today.getDate();
+    const currentMinutes = (today.getHours() * 60) + today.getMinutes();
+
+    const availableTimeSlots = useMemo(() => {
+        return TIME_SLOTS.map((label) => {
+            const slotMinutes = parseTimeLabelToMinutes(label);
+            const isToday = selectedDate === todayDateNumber;
+            const isDisabled = isToday && slotMinutes !== null ? slotMinutes <= currentMinutes : false;
+            return { label, isDisabled };
+        });
+    }, [selectedDate, todayDateNumber, currentMinutes]);
+
+    const nextAvailableSlot = useMemo(
+        () => availableTimeSlots.find((slot) => !slot.isDisabled) || null,
+        [availableTimeSlots]
+    );
 
     useEffect(() => {
         const fetchVehicles = async () => {
@@ -72,6 +108,22 @@ const CustomerBooking = () => {
         hasInitializedReschedule.current = true;
     }, [isRescheduleMode, rescheduleBooking]);
 
+    useEffect(() => {
+        if (selectedDate < todayDateNumber) {
+            setSelectedDate(todayDateNumber);
+        }
+    }, [selectedDate, todayDateNumber]);
+
+    useEffect(() => {
+        const isSelectedSlotValid = availableTimeSlots.some(
+            (slot) => slot.label === selectedTime && !slot.isDisabled
+        );
+
+        if (!isSelectedSlotValid && nextAvailableSlot) {
+            setSelectedTime(nextAvailableSlot.label);
+        }
+    }, [availableTimeSlots, selectedTime, nextAvailableSlot]);
+
     const services = [
         { name: 'Full Service', icon: '🔧', desc: 'All major systems checked. Ideal for every 10,000 km' },
         { name: 'Brake Service', icon: '🛞', desc: 'Pads, rotors, calipers - full brake system' },
@@ -96,6 +148,19 @@ const CustomerBooking = () => {
         if (!selectedVehicle) {
             alert('Please select a vehicle first.');
             setStep(2);
+            return;
+        }
+
+        if (selectedDate < todayDateNumber) {
+            alert('Please select today or a future date.');
+            setStep(3);
+            return;
+        }
+
+        const selectedSlot = availableTimeSlots.find((slot) => slot.label === selectedTime);
+        if (!selectedSlot || selectedSlot.isDisabled) {
+            alert('Please select a valid upcoming time slot.');
+            setStep(3);
             return;
         }
 
@@ -130,6 +195,20 @@ const CustomerBooking = () => {
             alert('Please select a vehicle to continue.');
             return;
         }
+
+        if (step === 3) {
+            if (selectedDate < todayDateNumber) {
+                alert('Please select today or a future date.');
+                return;
+            }
+
+            const selectedSlot = availableTimeSlots.find((slot) => slot.label === selectedTime);
+            if (!selectedSlot || selectedSlot.isDisabled) {
+                alert('Please select a valid upcoming time slot.');
+                return;
+            }
+        }
+
         setStep(step + 1);
     };
 
@@ -218,33 +297,46 @@ const CustomerBooking = () => {
                             </div>
                             <div className="customer-booking-calendar-grid">
                                 {[...Array(daysInMonth)].map((_, i) => (
+                                    (() => {
+                                        const dateNumber = i + 1;
+                                        const isPastDate = dateNumber < todayDateNumber;
+
+                                        return (
                                     <div
                                         key={i}
-                                        onClick={() => setSelectedDate(i + 1)}
-                                        className={`customer-booking-calendar-date ${selectedDate === i + 1 ? 'is-selected' : ''}`}
+                                        onClick={() => !isPastDate && setSelectedDate(dateNumber)}
+                                        className={`customer-booking-calendar-date ${selectedDate === dateNumber ? 'is-selected' : ''} ${isPastDate ? 'is-disabled' : ''}`}
                                     >
-                                        {i + 1}
+                                        {dateNumber}
                                     </div>
+                                        );
+                                    })()
                                 ))}
                             </div>
                         </div>
 
                         <div className="customer-booking-section-title">Pick a time - <span className="customer-booking-time-caption-date">{currentMonth} {selectedDate < 10 ? `0${selectedDate}` : selectedDate}</span></div>
                         <div className="customer-booking-time-grid">
-                            {['8:00 AM', '9:00 AM', '10:30 AM', '1:00 PM', '2:30 PM', '4:00 PM'].map((t) => (
+                            {availableTimeSlots.map(({ label, isDisabled }) => (
                                 <div
-                                    key={t}
-                                    className={`customer-booking-time-slot ${selectedTime === t ? 'is-selected' : ''}`}
-                                    onClick={() => setSelectedTime(t)}
+                                    key={label}
+                                    className={`customer-booking-time-slot ${selectedTime === label ? 'is-selected' : ''} ${isDisabled ? 'is-disabled' : ''}`}
+                                    onClick={() => !isDisabled && setSelectedTime(label)}
                                 >
-                                    {t}
+                                    {label}
                                 </div>
                             ))}
                         </div>
 
                         <div className="customer-booking-action-row">
                             <button onClick={() => setStep(2)} className="customer-booking-secondary-button">← Back</button>
-                            <button className="customer-booking-primary-button customer-booking-flex-button" onClick={nextStep}>Review Booking →</button>
+                            <button
+                                className="customer-booking-primary-button customer-booking-flex-button"
+                                onClick={nextStep}
+                                disabled={selectedDate === todayDateNumber && !nextAvailableSlot}
+                            >
+                                Review Booking →
+                            </button>
                         </div>
                     </div>
                 )}

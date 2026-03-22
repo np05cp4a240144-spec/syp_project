@@ -1,5 +1,22 @@
 const nodemailer = require('nodemailer');
 
+const parseBookingTime = (rawTime) => {
+    if (!rawTime) return null;
+
+    const directDate = new Date(rawTime);
+    if (!Number.isNaN(directDate.getTime())) {
+        return directDate;
+    }
+
+    const normalized = String(rawTime).replace(/·/g, '').replace(/\s+/g, ' ').trim();
+    const normalizedDate = new Date(normalized);
+    if (!Number.isNaN(normalizedDate.getTime())) {
+        return normalizedDate;
+    }
+
+    return null;
+};
+
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
@@ -38,6 +55,13 @@ const sendCredentialsEmail = async (email, password, name) => {
 };
 
 const sendConfirmationEmail = async (email, name, bookingDetails) => {
+    const serviceName = bookingDetails?.service || 'Service Booking';
+    const vehicleNameRaw = bookingDetails?.vehicle
+        ? `${bookingDetails.vehicle.year || ''} ${bookingDetails.vehicle.make || ''} ${bookingDetails.vehicle.model || ''}`.replace(/\s+/g, ' ').trim()
+        : '';
+    const vehicleName = vehicleNameRaw || 'N/A';
+    const plateNumber = bookingDetails?.vehicle?.plateNumber || bookingDetails?.vehicle?.plate || 'N/A';
+
     const mailOptions = {
         from: `"Auto Assist" <${process.env.EMAIL_USER}>`,
         to: email,
@@ -46,7 +70,12 @@ const sendConfirmationEmail = async (email, name, bookingDetails) => {
             <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px;">
                 <h2 style="color: #10B981;">Booking Confirmed!</h2>
                 <p>Hello ${name},</p>
-                <p>Your booking for <strong>${bookingDetails.service}</strong> has been confirmed.</p>
+                <p>Your booking has been received and confirmed by Auto Assist.</p>
+                <div style="background: #f8fafc; padding: 15px; border-radius: 6px; border-left: 4px solid #10B981; margin: 20px 0;">
+                    <p style="margin: 0; margin-bottom: 8px;"><strong>Service:</strong> ${serviceName}</p>
+                    <p style="margin: 0; margin-bottom: 8px;"><strong>Vehicle:</strong> ${vehicleName}</p>
+                    <p style="margin: 0;"><strong>Plate Number:</strong> ${plateNumber}</p>
+                </div>
                 <p>Thank you for choosing Auto Assist!</p>
             </div>
         `
@@ -57,6 +86,36 @@ const sendConfirmationEmail = async (email, name, bookingDetails) => {
         console.log(`Confirmation email sent to ${email}`);
     } catch (error) {
         console.error('Error sending confirmation email:', error);
+    }
+};
+
+const sendMechanicAssignedCustomerEmail = async (email, name, assignmentDetails = {}) => {
+    const serviceName = assignmentDetails?.service || 'your service';
+    const mechanicName = assignmentDetails?.mechanicName || 'a mechanic';
+
+    const mailOptions = {
+        from: `"Auto Assist" <${process.env.EMAIL_USER}>`,
+        to: email,
+        subject: 'Mechanic Assigned - Auto Assist',
+        html: `
+            <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px;">
+                <h2 style="color: #3B82F6;">Mechanic Assigned</h2>
+                <p>Hello ${name},</p>
+                <p>Your booking has been assigned to a mechanic.</p>
+                <div style="background: #f8fafc; padding: 15px; border-radius: 6px; border-left: 4px solid #3B82F6; margin: 20px 0;">
+                    <p style="margin: 0; margin-bottom: 8px;"><strong>Service:</strong> ${serviceName}</p>
+                    <p style="margin: 0;"><strong>Mechanic:</strong> ${mechanicName}</p>
+                </div>
+                <p>Thank you for choosing Auto Assist.</p>
+            </div>
+        `
+    };
+
+    try {
+        await transporter.sendMail(mailOptions);
+        console.log(`Mechanic assigned email sent to customer ${email}`);
+    } catch (error) {
+        console.error('Error sending mechanic assigned customer email:', error);
     }
 };
 
@@ -86,6 +145,11 @@ const sendUpdateEmail = async (email, name, service, updateMessage) => {
 };
 
 const sendReminderEmail = async (email, name, bookingDetails) => {
+    const parsedBookingTime = parseBookingTime(bookingDetails?.time);
+    const displayBookingTime = parsedBookingTime
+        ? parsedBookingTime.toLocaleString()
+        : (bookingDetails?.time || 'As scheduled');
+
     const mailOptions = {
         from: `"Auto Assist" <${process.env.EMAIL_USER}>`,
         to: email,
@@ -96,7 +160,7 @@ const sendReminderEmail = async (email, name, bookingDetails) => {
                 <p>Hello ${name},</p>
                 <p>This is a reminder for your upcoming <strong>${bookingDetails.service}</strong> service tomorrow.</p>
                 <div style="background: #f8fafc; padding: 15px; border-radius: 6px; border-left: 4px solid #F59E0B; margin: 20px 0;">
-                    <p style="margin: 0; margin-bottom: 8px;"><strong>Date/Time:</strong> ${new Date(bookingDetails.time).toLocaleString()}</p>
+                    <p style="margin: 0; margin-bottom: 8px;"><strong>Date/Time:</strong> ${displayBookingTime}</p>
                 </div>
                 <p>We look forward to seeing you!</p>
             </div>
@@ -114,7 +178,6 @@ const sendReminderEmail = async (email, name, bookingDetails) => {
 const sendPaymentReceivedEmail = async (email, name, paymentDetails = {}) => {
     const amount = Number(paymentDetails?.amount || 0);
     const formattedAmount = amount > 0 ? `NPR ${amount.toLocaleString()}` : 'NPR 0';
-    const reference = paymentDetails?.reference || paymentDetails?.pidx || 'N/A';
     const typeLabel = paymentDetails?.mode === 'parts' ? 'Parts Purchase' : 'Service Payment';
 
     const mailOptions = {
@@ -128,8 +191,7 @@ const sendPaymentReceivedEmail = async (email, name, paymentDetails = {}) => {
                 <p>Your payment has been received successfully.</p>
                 <div style="background: #f8fafc; padding: 15px; border-radius: 6px; border-left: 4px solid #10B981; margin: 20px 0;">
                     <p style="margin: 0; margin-bottom: 8px;"><strong>Type:</strong> ${typeLabel}</p>
-                    <p style="margin: 0; margin-bottom: 8px;"><strong>Amount:</strong> ${formattedAmount}</p>
-                    <p style="margin: 0;"><strong>Reference:</strong> ${reference}</p>
+                    <p style="margin: 0;"><strong>Amount:</strong> ${formattedAmount}</p>
                 </div>
                 <p>Thank you for choosing Auto Assist.</p>
             </div>
@@ -147,7 +209,6 @@ const sendPaymentReceivedEmail = async (email, name, paymentDetails = {}) => {
 
 const sendServiceFinalizedEmail = async (email, name, serviceDetails = {}) => {
     const serviceName = serviceDetails?.service || 'your service';
-    const reference = serviceDetails?.reference || serviceDetails?.appointmentId || 'N/A';
 
     const mailOptions = {
         from: `"Auto Assist" <${process.env.EMAIL_USER}>`,
@@ -159,8 +220,7 @@ const sendServiceFinalizedEmail = async (email, name, serviceDetails = {}) => {
                 <p>Hello ${name},</p>
                 <p>Your service has been finalized successfully.</p>
                 <div style="background: #f8fafc; padding: 15px; border-radius: 6px; border-left: 4px solid #10B981; margin: 20px 0;">
-                    <p style="margin: 0; margin-bottom: 8px;"><strong>Service:</strong> ${serviceName}</p>
-                    <p style="margin: 0;"><strong>Reference:</strong> #${reference}</p>
+                    <p style="margin: 0;"><strong>Service:</strong> ${serviceName}</p>
                 </div>
                 <p>Thank you for choosing Auto Assist.</p>
             </div>
@@ -212,6 +272,7 @@ const sendMechanicJobAssignedEmail = async (email, name, assignmentDetails = {})
 module.exports = {
     sendCredentialsEmail,
     sendConfirmationEmail,
+    sendMechanicAssignedCustomerEmail,
     sendUpdateEmail,
     sendReminderEmail,
     sendPaymentReceivedEmail,

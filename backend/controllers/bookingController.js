@@ -3,7 +3,7 @@ const {
     sendConfirmationEmail,
     sendUpdateEmail,
     sendServiceFinalizedEmail,
-    sendMechanicJobAssignedEmail
+    sendMechanicAssignedCustomerEmail
 } = require('../utils/emailUtil');
 const { getIO } = require('../utils/socket');
 
@@ -30,7 +30,7 @@ const createBooking = async (req, res) => {
             return res.status(400).json({ error: 'No mechanics available at the moment' });
         }
 
-        const assignedMechanic = mechanics.sort((a, b) => 
+        const assignedMechanic = mechanics.sort((a, b) =>
             a.mechanicAssignments.length - b.mechanicAssignments.length
         )[0];
 
@@ -45,7 +45,7 @@ const createBooking = async (req, res) => {
             },
             include: {
                 mechanic: {
-                    select: { name: true }
+                    select: { id: true, name: true }
                 },
                 vehicle: true
             }
@@ -58,6 +58,12 @@ const createBooking = async (req, res) => {
 
         try {
             const io = getIO();
+            io.to(`user_${req.user.id}`).emit('booking_confirmed_customer', {
+                appointmentId: appointment.id,
+                service: appointment.service,
+                message: `Your booking for ${appointment.service} has been confirmed.`
+            });
+
             io.to(`user_${assignedMechanic.id}`).emit('mechanic_job_assigned', {
                 appointmentId: appointment.id,
                 service: appointment.service,
@@ -65,25 +71,13 @@ const createBooking = async (req, res) => {
                 message: `New job assigned: ${appointment.service}`
             });
         } catch (socketError) {
-            console.error('Mechanic assignment socket emit failed:', socketError.message);
+            console.error('Booking confirmation socket emit failed:', socketError.message);
         }
 
         const user = await prisma.user.findUnique({ where: { id: req.user.id } });
         if (user && user.email) {
-            sendConfirmationEmail(user.email, user.name || 'Customer', appointment);
-        }
-
-        if (assignedMechanic?.email) {
-            sendMechanicJobAssignedEmail(
-                assignedMechanic.email,
-                assignedMechanic.name || 'Mechanic',
-                {
-                    appointmentId: appointment.id,
-                    service: appointment.service,
-                    time: appointment.time
-                }
-            ).catch((emailError) => {
-                console.error('Mechanic assignment email failed:', emailError.message);
+            sendConfirmationEmail(user.email, user.name || 'Customer', appointment).catch((emailError) => {
+                console.error('Booking confirmation email failed:', emailError.message);
             });
         }
 
@@ -210,16 +204,16 @@ const updateBookingStatus = async (req, res) => {
 
         res.json(updatedAppointment);
 
-        if ((status && status !== appointment.status) || (stage && stage !== appointment.stage)) {
+        const shouldNotifyServiceFinalized =
+            updatedAppointment.status === 'Completed' && appointment.status !== 'Completed';
+
+        if (!shouldNotifyServiceFinalized && ((status && status !== appointment.status) || (stage && stage !== appointment.stage))) {
             const user = updatedAppointment.user;
             if (user && user.email) {
                 const updateMsg = `Status changed to: ${updatedAppointment.status}, Stage changed to: ${updatedAppointment.stage}`;
                 sendUpdateEmail(user.email, user.name || 'Customer', updatedAppointment.service, updateMsg);
             }
         }
-
-        const shouldNotifyServiceFinalized =
-            updatedAppointment.status === 'Completed' && appointment.status !== 'Completed';
 
         if (shouldNotifyServiceFinalized) {
             if (updatedAppointment.user?.email) {
@@ -253,17 +247,16 @@ const updateBookingStatus = async (req, res) => {
             updatedAppointment.mechanicId !== appointment.mechanicId;
 
         if (mechanicChanged) {
-            if (updatedAppointment.mechanic?.email) {
-                sendMechanicJobAssignedEmail(
-                    updatedAppointment.mechanic.email,
-                    updatedAppointment.mechanic.name || 'Mechanic',
+            if (updatedAppointment.user?.email) {
+                sendMechanicAssignedCustomerEmail(
+                    updatedAppointment.user.email,
+                    updatedAppointment.user.name || 'Customer',
                     {
-                        appointmentId: updatedAppointment.id,
                         service: updatedAppointment.service,
-                        time: updatedAppointment.time
+                        mechanicName: updatedAppointment.mechanic?.name || 'Assigned Mechanic'
                     }
                 ).catch((emailError) => {
-                    console.error('Mechanic reassignment email failed:', emailError.message);
+                    console.error('Mechanic assigned customer email failed:', emailError.message);
                 });
             }
 

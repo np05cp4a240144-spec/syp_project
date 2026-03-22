@@ -184,6 +184,31 @@ const CustomerLayout = () => {
         return () => socket.off('service_finalized_customer', handleServiceFinalized);
     }, [socket]);
 
+    useEffect(() => {
+        if (!socket) return;
+
+        const handleBookingConfirmed = (payload = {}) => {
+            const notificationId = `booking-confirmed-${payload.appointmentId || Date.now()}`;
+
+            setNotifications((prev) => {
+                const withoutDuplicate = prev.filter((item) => item.id !== notificationId);
+                return [{
+                    id: notificationId,
+                    type: 'success',
+                    title: 'Booking confirmed',
+                    message: payload.message || 'Your booking has been confirmed successfully.',
+                    route: '/customer/history',
+                    isRealtime: true
+                }, ...withoutDuplicate];
+            });
+
+            setDismissedNotificationIds((prev) => prev.filter((id) => id !== notificationId));
+        };
+
+        socket.on('booking_confirmed_customer', handleBookingConfirmed);
+        return () => socket.off('booking_confirmed_customer', handleBookingConfirmed);
+    }, [socket]);
+
     const unreadCount = useMemo(
         () => notifications.filter((item) => !dismissedNotificationIds.includes(item.id)).length,
         [notifications, dismissedNotificationIds]

@@ -1,6 +1,23 @@
 const prisma = require('../config/db');
 const { sendReminderEmail } = require('./emailUtil');
 
+const parseBookingTime = (rawTime) => {
+    if (!rawTime) return null;
+
+    const directDate = new Date(rawTime);
+    if (!Number.isNaN(directDate.getTime())) {
+        return directDate;
+    }
+
+    const normalized = String(rawTime).replace(/·/g, '').replace(/\s+/g, ' ').trim();
+    const normalizedDate = new Date(normalized);
+    if (!Number.isNaN(normalizedDate.getTime())) {
+        return normalizedDate;
+    }
+
+    return null;
+};
+
 const triggerReminders = async () => {
     try {
         console.log('Running scheduled reminder check...');
@@ -26,14 +43,13 @@ const triggerReminders = async () => {
         // Filter and send emails
         let count = 0;
         for (const app of upcomingAppointments) {
-            const appDateStr = app.time; 
-            const appDate = new Date(appDateStr);
-            if (!isNaN(appDate.getTime())) {
-                if (appDate >= startDate && appDate <= endDate) {
-                    if (app.user && app.user.email) {
-                        sendReminderEmail(app.user.email, app.user.name || 'Customer', app);
-                        count++;
-                    }
+            const appDate = parseBookingTime(app.time);
+            if (!appDate) continue;
+
+            if (appDate >= startDate && appDate <= endDate) {
+                if (app.user && app.user.email) {
+                    await sendReminderEmail(app.user.email, app.user.name || 'Customer', app);
+                    count++;
                 }
             }
         }
